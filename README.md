@@ -72,7 +72,7 @@ cd charging-platform
 
 ### 3. 编译
 
-**命令行方式:**
+**第一种：命令行方式:**
 
 ```bash
 cmake -S . -B build          # 配置(生成构建文件到 build/ 目录)
@@ -88,7 +88,7 @@ cmake --build build -j4      # 编译
 | `net_selftest` | 通信自检(跨设备数据同步/广播) |
 | `db_selftest` | 数据库自检(建表/增删改查) |
 
-**Qt Creator 方式(可选):**
+**第二种：Qt Creator 方式:**
 
 1. 打开 Qt Creator → Open 选择项目根目录的 `CMakeLists.txt`
 2. 选一个构建套件(Kits),点左侧"项目"确认 CMake 配置无误

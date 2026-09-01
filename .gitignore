@@ -1,0 +1,36 @@
+# ===== 构建产物 =====
+# 建议把 CMake 构建目录建在源码目录外;这里兜底忽略
+build*/
+build-*/
+*.o
+*.a
+
+# ===== Qt Creator 用户文件(含本机路径,不入库) =====
+*.user
+CMakeLists.txt.user*
+
+# ===== Qt 自动生成 =====
+*_autogen/
+moc_*.cpp
+ui_*.h
+qrc_*.cpp
+.qmake.stash
+Makefile
+
+# ===== 本地数据库(运行时生成,不入库) =====
+*.db
+*.db-journal
+*.db-shm
+*.db-wal
+*.sqlite
+*.sqlite3
+
+# ===== 自检临时文件 =====
+selftest.db
+server_test.db
+gui_test_*.db
+
+# ===== 编辑器 / 系统 =====
+*.swp
+*.swo
+.DS_Store

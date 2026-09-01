@@ -35,36 +35,133 @@ tests/   自检程序(db_selftest / net_selftest / gui_flow_test)
 resources/  QSS 样式资源
 ```
 
-## 环境要求
+---
 
-- Linux,Qt 6.2 及以上(需 `Widgets` / `Sql` / `Network`;`Test` 用于自检;`Charts`、`WebEngine` 为后续图表/地图功能预留)
-- CMake ≥ 3.5,C++17 编译器
+## 在本地运行这个项目(详细)
 
-## 编译
+### 1. 环境准备
 
-```bash
-cmake -S . -B build
-cmake --build build -j
-```
+需要一台 **Linux** 机器(Ubuntu 22.04 / Debian 等),并安装:
 
-产出三个可执行文件:`charging-platform`(主程序)、`gui_flow_test` / `db_selftest` / `net_selftest`(自检工具)。
+| 软件 | 用途 | Ubuntu 安装命令 |
+|---|---|---|
+| C++ 编译器 | 编译 | `sudo apt install g++` |
+| CMake(≥3.5) | 构建 | `sudo apt install cmake` |
+| Qt 6 开发库 | 界面/数据库/网络/测试 | `sudo apt install qt6-base-dev libqt6sql6-sqlite qt6-base-dev-tools` |
+| (可选) Qt Creator | 用 IDE 开发/运行 | `sudo apt install qtcreator` |
 
-## 运行演示
+> 说明:`qt6-base-dev` 提供 Widgets / Sql / Network / Test 组件;`libqt6sql6-sqlite` 提供 SQLite 数据库驱动(QtSql 必须依赖它,否则程序报 "QSQLITE driver not loaded")。
+> 本仓库当前只用上述组件;`Qt6Charts`(图表)、`Qt6WebEngine`(地图)为后续功能预留,现在不装也能编译运行。
 
-同一台电脑开**两个实例**模拟两台设备:
-
-1. 实例 ①:**管理员端** → 用 `admin / 123456` 登录(该进程即"服务器 + 数据库",请保持运行)
-2. 实例 ②:**用户端** → 服务器地址保持默认 `127.0.0.1:9527` → 输入 11 位手机号登录(未注册自动注册)
-
-用户端充电等操作,管理员端可实时看到。跨设备时,用户端把地址改成管理员机器的局域网 IP 即可。
-
-## 自检
+验证安装是否就绪:
 
 ```bash
-./db_selftest    # 数据库层:建表/增删改查/信号
-./net_selftest   # 跨设备:一端改数据 → 另一端实时收到广播
-./gui_flow_test  # 界面:脚本化点击 登录链路 → 主界面
+g++ --version && cmake --version && qmake6 --version
 ```
+
+(能打印出版本号即可。)
+
+### 2. 获取代码
+
+```bash
+git clone https://github.com/chenyux0677-netizen/charging-platform.git
+cd charging-platform
+```
+
+> 没有 git 就先 `sudo apt install git`。
+
+### 3. 编译
+
+**命令行方式:**
+
+```bash
+cmake -S . -B build          # 配置(生成构建文件到 build/ 目录)
+cmake --build build -j4      # 编译
+```
+
+编译完成后,在 `build/` 目录下会得到 4 个可执行文件:
+
+| 可执行文件 | 作用 |
+|---|---|
+| `charging-platform` | 主程序(用户端/管理员端二合一,启动后先选角色) |
+| `gui_flow_test` | 界面自检(脚本化点击登录链路) |
+| `net_selftest` | 通信自检(跨设备数据同步/广播) |
+| `db_selftest` | 数据库自检(建表/增删改查) |
+
+**Qt Creator 方式(可选):**
+
+1. 打开 Qt Creator → Open 选择项目根目录的 `CMakeLists.txt`
+2. 选一个构建套件(Kits),点左侧"项目"确认 CMake 配置无误
+3. 点击左下角 ▶ Run 运行,或 Build → 构建
+
+### 4. 运行演示
+
+整个系统 = **服务器(含数据库)+ 管理员端 + 用户端**。演示时开**两个程序实例**来模拟"两台设备":
+
+#### 第一步:启动管理员端(先!它同时就是服务器)
+
+```bash
+cd build
+./charging-platform
+```
+
+- 弹出「角色选择页」→ 点 **管理员端**
+- 输入账号 `admin`、密码 `123456`(服务器首次启动会自动建好这个默认账号)→ 点登录
+- 进入管理界面后,**保持这个程序运行不要关**
+- 此时该进程:监听 `0.0.0.0:9527` 端口、在**当前工作目录**下创建 `app.db` 数据库
+
+> 如果提示"启动失败",多半是端口 9527 被占用(比如上次的实例没关干净),关掉占用的进程再试。
+
+#### 第二步:再开一个用户端(模拟另一台设备)
+
+```bash
+cd build
+./charging-platform        # 再运行一次,第二个窗口
+```
+
+- 角色选择页 → 点 **用户端**
+- 服务器地址保持默认 `127.0.0.1:9527`(因为两台"设备"在同一台电脑上)
+- 输入任意 **11 位手机号**(例如 `13800138000`)→ 登录。**首次输入会自动注册**(昵称 = "用户"+手机号后四位)
+- 进入手机风格界面,可浏览电站、充电桩、订单等
+
+两个窗口同时在跑,就是"管理员机器 + 用户机器"同一电脑演示版;用户端的一切操作会实时同步到管理员端。
+
+#### 跨设备运行(两台真实机器)
+
+用户端和数据库/管理员端不在一台电脑时:
+
+- **管理员端**那台机器照常启动(保持默认端口 9527,程序会自动监听所有网卡)
+- **用户端**那台机器在角色选择页把 **服务器地址改成管理员机器的局域网 IP**(端口仍 9527)
+- 两台机器需要在同一局域网,且防火墙放行 9527 端口
+
+### 5. 运行自检(可选,验证功能完好)
+
+```bash
+cd build
+./db_selftest      # 应输出"自检通过 ✅"
+./net_selftest     # 应输出"自检通过 ✅"
+./gui_flow_test    # 应输出 5 passed, 0 failed
+```
+
+> `gui_flow_test` 会弹出窗口并自动点击,需要图形界面环境。
+
+### 6. 数据说明
+
+- 数据库文件 `app.db` 生成在**运行时的当前工作目录**(命令行运行就是 `build/` 下)
+- 删除 `app.db` 再启动管理员端,即可重置所有数据(用户/订单/桩数据都会清空,默认管理员会重新建)
+- 数据库文件已加入 `.gitignore`,不会进仓库
+
+### 7. 常见问题(FAQ)
+
+| 现象 | 原因 | 解决 |
+|---|---|---|
+| 用户端登录提示"连接服务器失败" | 管理员端还没启动(服务器在管理员端进程里) | 先启动管理员端并保持运行 |
+| 管理员端提示"启动失败" | 端口 9527 被占用 | 关闭占用 9527 的进程,或改端口 |
+| 报错 "QSQLITE driver not loaded" | 缺 SQLite 驱动包 | `sudo apt install libqt6sql6-sqlite` |
+| 程序一闪而过/窗口打不开 | 无图形环境 | 确保有图形界面,或检查 DISPLAY 变量 |
+| 手机号登录提示"账号已停用" | 该用户被管理员端封号 | 管理员端"用户管理"页解封(此页为待实现功能) |
+
+---
 
 ## 路线图
 

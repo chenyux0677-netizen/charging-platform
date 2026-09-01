@@ -69,9 +69,36 @@ void RemoteDataSource::onReadyRead()
                 callback(QVariant());
             }
         } else if (kind == QStringLiteral("notify")) {
-            emit dataChanged(msg.value(QStringLiteral("table")).toString());
+            // 暂存:请求进行中(含嵌套)同步刷新会重入,统一延迟到请求结束再补发
+            m_deferredNotifies << msg.value(QStringLiteral("table")).toString();
         }
     }
+    // 通知统一延迟发出:绝不在此处同步刷新(详见 flushDeferredNotifies)
+    scheduleFlush();
+}
+
+void RemoteDataSource::flushDeferredNotifies()
+{
+    m_flushScheduled = false;
+    // 还有请求在等回包时先不发,等该请求结束再重新排队
+    if (!m_pending.isEmpty() || m_deferredNotifies.isEmpty())
+        return;
+    const QStringList tables = m_deferredNotifies;
+    m_deferredNotifies.clear();
+    for (const QString &t : tables)
+        emit dataChanged(t);
+}
+
+void RemoteDataSource::scheduleFlush()
+{
+    if (m_flushScheduled)
+        return;
+    if (!m_pending.isEmpty() || m_deferredNotifies.isEmpty())
+        return;
+    m_flushScheduled = true;
+    // 0ms 定时器:等当前事件(可能含 onReadyRead)处理完,在普通上下文中发通知。
+    // 页面收到后做的阻塞刷新查询因此能正常收到回包,不会触发 readyRead 屏蔽超时。
+    QTimer::singleShot(0, this, [this] { flushDeferredNotifies(); });
 }
 
 QVariant RemoteDataSource::sendRequestAndWait(const QJsonObject &request)
@@ -92,8 +119,10 @@ QVariant RemoteDataSource::sendRequestAndWait(const QJsonObject &request)
     m_socket->write(Protocol::encodeFrame(request));
     timer.start(5000); // 5 秒超时,避免永久阻塞
     loop.exec();
+    timer.stop(); // 回包后立即停表,防止过期定时器串扰后续嵌套请求
 
     m_pending.remove(reqId);
+    scheduleFlush();
     if (timedOut) {
         qWarning() << "[RemoteDataSource] 请求超时(reqId =" << reqId << ")";
         return QVariant();

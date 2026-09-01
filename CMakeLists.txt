@@ -60,6 +60,8 @@ set(PROJECT_SOURCES
     user/pages/ProfilePage.cpp
     user/services/MapService.h
     user/services/MapService.cpp
+    user/services/ChargeService.h
+    user/services/ChargeService.cpp
 
     # 管理员端
     admin/AdminLoginWindow.h
@@ -158,12 +160,16 @@ qt_add_executable(gui_flow_test
     user/UserMainWindow.cpp
     user/pages/StationListPage.h
     user/pages/StationListPage.cpp
+    user/pages/StationDetailPage.h
+    user/pages/StationDetailPage.cpp
     user/pages/ChargingPage.h
     user/pages/ChargingPage.cpp
     user/pages/OrderPage.h
     user/pages/OrderPage.cpp
     user/pages/ProfilePage.h
     user/pages/ProfilePage.cpp
+    user/services/ChargeService.h
+    user/services/ChargeService.cpp
     admin/AdminLoginWindow.h
     admin/AdminLoginWindow.cpp
     admin/AdminMainWindow.h

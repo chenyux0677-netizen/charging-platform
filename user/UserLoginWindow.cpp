@@ -107,9 +107,9 @@ void UserLoginWindow::onLoginClicked()
                              QStringLiteral("注册或登录失败,请稍后重试。"));
         return;
     }
-    if (user.value(QStringLiteral("status")).toString() == QStringLiteral("停用")) {
-        QMessageBox::warning(this, QStringLiteral("账号已停用"),
-                             QStringLiteral("该账号已被管理员停用,无法登录。"));
+    if (user.value(QStringLiteral("status")).toString() == QStringLiteral("冻结")) {
+        QMessageBox::warning(this, QStringLiteral("账号已冻结"),
+                             QStringLiteral("该账号已被管理员冻结,无法登录。"));
         return;
     }
 

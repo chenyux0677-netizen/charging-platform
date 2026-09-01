@@ -3,6 +3,7 @@
 #include "user/pages/ChargingPage.h"
 #include "user/pages/OrderPage.h"
 #include "user/pages/ProfilePage.h"
+#include "user/pages/StationDetailPage.h"
 #include "user/pages/StationListPage.h"
 
 #include <QHBoxLayout>
@@ -31,34 +32,38 @@ UserMainWindow::UserMainWindow(QWidget *parent)
     setWindowTitle(QStringLiteral("充电桩 · 用户端"));
     setFixedSize(360, 640);
 
-    // 中部页面栈:四个标签页
     m_stationListPage = new StationListPage(this);
+    m_stationDetailPage = new StationDetailPage(this);
     m_chargingPage = new ChargingPage(this);
     m_orderPage = new OrderPage(this);
     m_profilePage = new ProfilePage(this);
 
     m_stack = new QStackedWidget(this);
     m_stack->setObjectName(QStringLiteral("pageStack"));
-    m_stack->addWidget(m_stationListPage);   // 0 电站
-    m_stack->addWidget(m_chargingPage);      // 1 充电
-    m_stack->addWidget(m_orderPage);         // 2 订单
-    m_stack->addWidget(m_profilePage);       // 3 我的
+    m_stack->addWidget(m_stationListPage);   // 0 电站列表
+    m_stack->addWidget(m_stationDetailPage); // 1 电站详情(临时页)
+    m_stack->addWidget(m_chargingPage);      // 2 充电
+    m_stack->addWidget(m_orderPage);         // 3 订单
+    m_stack->addWidget(m_profilePage);       // 4 我的
 
     // 顶部标题栏
     auto *titleBar = new QLabel(QStringLiteral("充电桩用户端"), this);
     titleBar->setObjectName(QStringLiteral("titleLabel"));
     titleBar->setAlignment(Qt::AlignCenter);
 
-    // 底部导航
-    const QVector<QPushButton *> navButtons = {
-        makeNavButton(QStringLiteral("电站"), QStringLiteral("navStationBtn")),
-        makeNavButton(QStringLiteral("充电"), QStringLiteral("navChargeBtn")),
-        makeNavButton(QStringLiteral("订单"), QStringLiteral("navOrderBtn")),
-        makeNavButton(QStringLiteral("我的"), QStringLiteral("navProfileBtn")),
+    // 底部导航:按钮 → 页面栈索引
+    struct NavItem { QPushButton *btn; int index; };
+    const QVector<NavItem> navItems = {
+        { makeNavButton(QStringLiteral("电站"), QStringLiteral("navStationBtn")), 0 },
+        { makeNavButton(QStringLiteral("充电"), QStringLiteral("navChargeBtn")), 2 },
+        { makeNavButton(QStringLiteral("订单"), QStringLiteral("navOrderBtn")), 3 },
+        { makeNavButton(QStringLiteral("我的"), QStringLiteral("navProfileBtn")), 4 },
     };
+    for (const NavItem &n : navItems)
+        m_navButtons << n.btn;
 
     auto *navBar = new QHBoxLayout;
-    for (QPushButton *b : navButtons)
+    for (QPushButton *b : m_navButtons)
         navBar->addWidget(b);
 
     auto *layout = new QVBoxLayout(this);
@@ -68,14 +73,51 @@ UserMainWindow::UserMainWindow(QWidget *parent)
     layout->addWidget(m_stack, 1);
     layout->addLayout(navBar);
 
-    // 点击导航 → 切页面,并把选中态移动到对应按钮
-    for (int i = 0; i < navButtons.size(); ++i) {
-        QPushButton *btn = navButtons[i];
-        connect(btn, &QPushButton::clicked, this, [this, i, btn, navButtons] {
-            m_stack->setCurrentIndex(i);
-            for (QPushButton *b : navButtons)
-                b->setChecked(b == btn);
-        });
+    for (const NavItem &n : navItems) {
+        connect(n.btn, &QPushButton::clicked, this, [this, n] { switchTo(n.index); });
     }
-    navButtons.first()->setChecked(true); // 默认停在"电站"
+
+    // 页面间流转
+    connect(m_stationListPage, &StationListPage::stationClicked,
+            this, [this](const DataRow &st) {
+        m_stationDetailPage->setStation(st);
+        switchTo(1);
+    });
+    connect(m_stationDetailPage, &StationDetailPage::backRequested,
+            this, [this] { switchTo(0); });
+    connect(m_stationDetailPage, &StationDetailPage::pileChosen,
+            this, [this](const DataRow &pile) {
+        m_chargingPage->setPile(pile);
+        switchTo(2);
+    });
+    connect(m_chargingPage, &ChargingPage::goToOrders,
+            this, [this] { switchTo(3); });
+    connect(m_chargingPage, &ChargingPage::backToStations,
+            this, [this] { switchTo(0); });
+    connect(m_profilePage, &ProfilePage::logoutRequested,
+            this, &UserMainWindow::logoutRequested);
+
+    switchTo(0); // 默认停在"电站"
+}
+
+void UserMainWindow::switchTo(int index)
+{
+    m_stack->setCurrentIndex(index);
+
+    // 页面切换钩子
+    switch (index) {
+    case 0: m_stationListPage->refresh(); break;
+    case 2: m_chargingPage->onPageEntered(); break;
+    case 3: m_orderPage->refresh(); break;
+    case 4: m_profilePage->refresh(); break;
+    default: break;
+    }
+
+    // 底部导航选中态同步(详情页算"电站")
+    if (m_navButtons.size() == 4) {
+        m_navButtons[0]->setChecked(index == 0 || index == 1);
+        m_navButtons[1]->setChecked(index == 2);
+        m_navButtons[2]->setChecked(index == 3);
+        m_navButtons[3]->setChecked(index == 4);
+    }
 }

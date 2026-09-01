@@ -45,14 +45,62 @@ void Server::seedInitialData()
 {
     // 幂等:admin 账号已存在则不动
     const QueryResult admins = m_ds->query(QStringLiteral("admins"));
-    if (!admins.isEmpty())
+    if (admins.isEmpty()) {
+        QHash<QString, QVariant> admin;
+        admin.insert(QStringLiteral("username"), QStringLiteral("admin"));
+        admin.insert(QStringLiteral("password"), QStringLiteral("123456"));
+        const qlonglong id = m_ds->insertRow(QStringLiteral("admins"), admin);
+        qInfo() << "[Server] 已初始化默认管理员 admin, id =" << id;
+    }
+
+    // 演示种子数据:电站 + 电桩。仅当电站表为空时写入。
+    // ★ 这是"演示数据",不是真实设备:仅供首次运行开箱即用。
+    //   之后可在管理员端"充电站管理"自行新增/修改,或删除 app.db 重置。
+    if (!m_ds->query(QStringLiteral("charging_stations")).isEmpty())
         return;
 
-    QHash<QString, QVariant> admin;
-    admin.insert(QStringLiteral("username"), QStringLiteral("admin"));
-    admin.insert(QStringLiteral("password"), QStringLiteral("123456"));
-    const qlonglong id = m_ds->insertRow(QStringLiteral("admins"), admin);
-    qInfo() << "[Server] 已初始化默认管理员 admin, id =" << id;
+    struct PileGroup { int count; QString type; double power; };
+    struct SeedStation { QString name, address; double lat, lng, price; QVector<PileGroup> piles; };
+
+    const QVector<SeedStation> seeds = {
+        { QStringLiteral("中关村科技园充电站"), QStringLiteral("北京市海淀区中关村大街1号"),
+          39.984, 116.318, 1.20,
+          { {4, QStringLiteral("快充"), 120.0}, {2, QStringLiteral("慢充"), 7.0} } },
+        { QStringLiteral("陆家嘴金融城充电站"), QStringLiteral("上海市浦东新区世纪大道100号"),
+          31.239, 121.501, 1.50,
+          { {3, QStringLiteral("快充"), 120.0}, {2, QStringLiteral("慢充"), 7.0} } },
+        { QStringLiteral("天河CBD充电站"), QStringLiteral("广州市天河区体育西路108号"),
+          23.129, 113.321, 1.35,
+          { {3, QStringLiteral("快充"), 60.0}, {2, QStringLiteral("慢充"), 7.0} } },
+    };
+
+    for (const SeedStation &s : seeds) {
+        QHash<QString, QVariant> st;
+        st.insert(QStringLiteral("name"), s.name);
+        st.insert(QStringLiteral("address"), s.address);
+        st.insert(QStringLiteral("lat"), s.lat);
+        st.insert(QStringLiteral("lng"), s.lng);
+        st.insert(QStringLiteral("price_per_kwh"), s.price);
+        const qlonglong sid = m_ds->insertRow(QStringLiteral("charging_stations"), st);
+        if (sid <= 0)
+            continue;
+
+        int idx = 0;
+        for (const PileGroup &g : s.piles) {
+            for (int i = 0; i < g.count; ++i) {
+                ++idx;
+                QHash<QString, QVariant> p;
+                p.insert(QStringLiteral("station_id"), sid);
+                p.insert(QStringLiteral("code"),
+                         QStringLiteral("P%1-%2").arg(sid).arg(idx, 2, 10, QChar('0')));
+                p.insert(QStringLiteral("type"), g.type);
+                p.insert(QStringLiteral("power_kw"), g.power);
+                p.insert(QStringLiteral("price_per_kwh"), s.price);
+                m_ds->insertRow(QStringLiteral("charging_piles"), p);
+            }
+        }
+    }
+    qInfo() << "[Server] 已写入演示电站/电桩种子数据(删除 app.db 可重置)";
 }
 
 void Server::onNewConnection()
@@ -96,6 +144,7 @@ void Server::onClientDisconnected()
 
 void Server::sendToClient(QTcpSocket *client, const QJsonObject &msg)
 {
+    qInfo() << "[Server] sendToClient reqId" << msg.value("reqId").toInt();
     client->write(Protocol::encodeFrame(msg));
 }
 
@@ -114,6 +163,7 @@ void Server::handleMessage(QTcpSocket *client, const QJsonObject &msg)
     const quint32 reqId = static_cast<quint32>(msg.value(QStringLiteral("reqId")).toInt());
     const QString op = msg.value(QStringLiteral("op")).toString();
     const QString table = msg.value(QStringLiteral("table")).toString();
+    qInfo() << "[Server] handle op=" << op << "table=" << table << "reqId=" << reqId;
 
     QJsonObject resp;
     resp.insert(QStringLiteral("kind"), QStringLiteral("resp"));

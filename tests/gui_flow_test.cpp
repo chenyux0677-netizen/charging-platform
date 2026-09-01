@@ -13,8 +13,11 @@
 
 #include <QtTest/QtTest>
 #include <QApplication>
+#include <QDateTime>
 #include <QDialog>
+#include <QLabel>
 #include <QLineEdit>
+#include <QListWidget>
 #include <QPushButton>
 #include <QStackedWidget>
 #include <QTabWidget>
@@ -50,6 +53,9 @@ private slots:
     void roleSelectSignals();
     void adminLoginFlow();
     void userLoginFlow();
+    void chargingSeedTest();
+    void chargeFlow();
+    void unfinishedOrderCheck();
 
 private:
     // 周期守卫:测试中一旦冒出模态提示框,30ms 内自动关掉。
@@ -211,12 +217,207 @@ void GuiFlowTest::userLoginFlow()
                      QStringLiteral("phone = ?"), QVariantList{phone});
     QCOMPARE(rows.size(), 1);
 
-    // 用户主界面:页面栈 4 页(电站 / 充电 / 订单 / 我的)
+    // 用户主界面:页面栈 5 页(电站列表 / 电站详情 / 充电 / 订单 / 我的)
     UserMainWindow mainWin;
     mainWin.show();
     QStackedWidget *stack = find<QStackedWidget>(&mainWin, "pageStack");
     QVERIFY(stack);
-    QCOMPARE(stack->count(), 4);
+    QCOMPARE(stack->count(), 5);
+}
+
+// ---- ④ 充电业务数据:种子电站/电桩 + 新列存在 ----
+void GuiFlowTest::chargingSeedTest()
+{
+    QFile::remove(QStringLiteral("gui_test_seed.db"));
+
+    Server server;
+    QVERIFY(server.start(QStringLiteral("gui_test_seed.db"),
+                         QStringLiteral("127.0.0.1"), 0));
+    AppContext::instance()->setServer(QStringLiteral("127.0.0.1"), server.port());
+    QVERIFY(AppContext::instance()->connectIfNeeded());
+    DataSource *ds = AppContext::instance()->dataSource();
+    QVERIFY(ds);
+
+    // 种子电站
+    const QueryResult stations = ds->query(QStringLiteral("charging_stations"));
+    QVERIFY(stations.size() >= 3);
+    const DataRow st = stations.first();
+    QVERIFY(st.contains(QStringLiteral("price_per_kwh")));
+    QVERIFY(st.value(QStringLiteral("price_per_kwh")).toDouble() > 0.0);
+
+    // 种子电桩:每站有桩,累计字段存在且初值为 0
+    const QueryResult piles = ds->query(QStringLiteral("charging_piles"));
+    QVERIFY(piles.size() >= 6);
+    const DataRow p = piles.first();
+    QVERIFY(p.contains(QStringLiteral("charge_count")));
+    QVERIFY(p.contains(QStringLiteral("charge_duration_min")));
+    QCOMPARE(p.value(QStringLiteral("charge_count")).toLongLong(), 0LL);
+
+    // 默认管理员仍在
+    const QueryResult admins = ds->query(QStringLiteral("admins"), {},
+                                         QStringLiteral("username = 'admin'"));
+    QCOMPARE(admins.size(), 1);
+}
+
+// ---- ⑤ 完整充电链路:选站 → 选桩 → 开始 → 进度 → 结束结算 ----
+void GuiFlowTest::chargeFlow()
+{
+    QFile::remove(QStringLiteral("gui_test_charge.db"));
+
+    Server server;
+    QVERIFY(server.start(QStringLiteral("gui_test_charge.db"),
+                         QStringLiteral("127.0.0.1"), 0));
+    AppContext::instance()->setServer(QStringLiteral("127.0.0.1"), server.port());
+    QVERIFY(AppContext::instance()->connectIfNeeded());
+    DataSource *ds = AppContext::instance()->dataSource();
+    QVERIFY(ds);
+
+    // 造一个带余额的测试用户并设为当前登录用户
+    QHash<QString, QVariant> u;
+    u.insert(QStringLiteral("phone"), QStringLiteral("13900000001"));
+    u.insert(QStringLiteral("nickname"), QStringLiteral("测试用户"));
+    u.insert(QStringLiteral("balance"), 100.0);
+    const qlonglong userId = ds->insertRow(QStringLiteral("users"), u);
+    QVERIFY(userId > 0);
+    const QueryResult userRows = ds->query(QStringLiteral("users"), {},
+                                           QStringLiteral("id = ?"), QVariantList{userId});
+    QVERIFY(!userRows.isEmpty());
+    AppContext::instance()->setCurrentUser(userRows.first());
+
+    UserMainWindow mainWin;
+    mainWin.show();
+    QVERIFY(QTest::qWaitForWindowExposed(&mainWin));
+    QStackedWidget *stack = find<QStackedWidget>(&mainWin, "pageStack");
+    QVERIFY(stack);
+    QCOMPARE(stack->currentIndex(), 0); // 默认停在电站列表
+
+    // 选中第一个电站 → 进入详情页
+    QListWidget *stationList = find<QListWidget>(&mainWin, "stationList");
+    QVERIFY(stationList);
+    QVERIFY(stationList->count() > 0);
+    QTest::mouseClick(stationList->viewport(), Qt::LeftButton, Qt::NoModifier,
+                      stationList->visualItemRect(stationList->item(0)).center());
+    QCOMPARE(stack->currentIndex(), 1);
+
+    // 选第一个空闲桩 → 进入充电页
+    QListWidget *pileList = find<QListWidget>(&mainWin, "pileList");
+    QVERIFY(pileList);
+    QVERIFY(pileList->count() > 0);
+    QTest::mouseClick(pileList->viewport(), Qt::LeftButton, Qt::NoModifier,
+                      pileList->visualItemRect(pileList->item(0)).center());
+    QCOMPARE(stack->currentIndex(), 2);
+
+    QPushButton *startBtn = find<QPushButton>(&mainWin, "startChargeBtn");
+    QPushButton *stopBtn = find<QPushButton>(&mainWin, "stopChargeBtn");
+    QLabel *energyLabel = find<QLabel>(&mainWin, "energyLabel");
+    QVERIFY(startBtn && stopBtn && energyLabel);
+    QVERIFY(startBtn->isEnabled()); // 无未完成订单,可开始
+
+    // 开始充电
+    QTest::mouseClick(startBtn, Qt::LeftButton);
+    QVERIFY(!startBtn->isEnabled());
+    QVERIFY(stopBtn->isEnabled());
+
+    const QueryResult charging = ds->query(QStringLiteral("orders"), {},
+        QStringLiteral("user_id = ? AND status = '充电中'"), QVariantList{userId});
+    QCOMPARE(charging.size(), 1);
+    const DataRow order = charging.first();
+    const qlonglong pileId = order.value(QStringLiteral("pile_id")).toLongLong();
+    const QueryResult pileBusy = ds->query(QStringLiteral("charging_piles"), {},
+        QStringLiteral("id = ?"), QVariantList{pileId});
+    QCOMPARE(pileBusy.first().value(QStringLiteral("status")).toString(),
+             QStringLiteral("使用中"));
+
+    // 等 ~2.2 秒(模拟 ~2 分钟),电量应从 0 涨起来
+    QTest::qWait(2200);
+    const QString energyText = energyLabel->text();
+    QVERIFY(energyText.contains(QStringLiteral("kWh")));
+    QVERIFY(!energyText.contains(QStringLiteral("0.00 kWh")));
+
+    // 结束充电 → 结算(提示框被守卫自动关掉)
+    QTest::mouseClick(stopBtn, Qt::LeftButton);
+    QTest::qWait(50);
+
+    const QueryResult done = ds->query(QStringLiteral("orders"), {},
+        QStringLiteral("id = ?"), QVariantList{order.value(QStringLiteral("id")).toLongLong()});
+    QCOMPARE(done.first().value(QStringLiteral("status")).toString(), QStringLiteral("已完成"));
+    QVERIFY(done.first().value(QStringLiteral("energy_kwh")).toDouble() > 0.0);
+    QVERIFY(done.first().value(QStringLiteral("amount")).toDouble() > 0.0);
+
+    const QueryResult pileAfter = ds->query(QStringLiteral("charging_piles"), {},
+        QStringLiteral("id = ?"), QVariantList{pileId});
+    QCOMPARE(pileAfter.first().value(QStringLiteral("status")).toString(),
+             QStringLiteral("空闲"));
+    QCOMPARE(pileAfter.first().value(QStringLiteral("charge_count")).toLongLong(), 1LL);
+    QVERIFY(pileAfter.first().value(QStringLiteral("charge_duration_min")).toLongLong() >= 1);
+
+    // 用户余额被扣(100 起步,结算后应小于 100)
+    const QueryResult userAfter = ds->query(QStringLiteral("users"), {},
+        QStringLiteral("id = ?"), QVariantList{userId});
+    QVERIFY(userAfter.first().value(QStringLiteral("balance")).toDouble() < 100.0);
+}
+
+// ---- ⑥ 未完成订单拦截:有"充电中"订单时,进充电页被拦下并跳到订单页 ----
+void GuiFlowTest::unfinishedOrderCheck()
+{
+    QFile::remove(QStringLiteral("gui_test_unfinished.db"));
+
+    Server server;
+    QVERIFY(server.start(QStringLiteral("gui_test_unfinished.db"),
+                         QStringLiteral("127.0.0.1"), 0));
+    AppContext::instance()->setServer(QStringLiteral("127.0.0.1"), server.port());
+    QVERIFY(AppContext::instance()->connectIfNeeded());
+    DataSource *ds = AppContext::instance()->dataSource();
+    QVERIFY(ds);
+
+    // 造用户 + 一笔直接插入的"充电中"订单
+    QHash<QString, QVariant> u;
+    u.insert(QStringLiteral("phone"), QStringLiteral("13900000002"));
+    u.insert(QStringLiteral("nickname"), QStringLiteral("待结算用户"));
+    const qlonglong userId = ds->insertRow(QStringLiteral("users"), u);
+    QVERIFY(userId > 0);
+    const QueryResult userRows = ds->query(QStringLiteral("users"), {},
+                                           QStringLiteral("id = ?"), QVariantList{userId});
+    QVERIFY(!userRows.isEmpty());
+    AppContext::instance()->setCurrentUser(userRows.first());
+
+    const QueryResult pileRows = ds->query(QStringLiteral("charging_piles"));
+    QVERIFY(!pileRows.isEmpty());
+    QHash<QString, QVariant> order;
+    order.insert(QStringLiteral("user_id"), userId);
+    order.insert(QStringLiteral("pile_id"), pileRows.first().value(QStringLiteral("id")).toLongLong());
+    order.insert(QStringLiteral("start_time"),
+                 QDateTime::currentDateTime().addSecs(-120).toString(Qt::ISODate));
+    const qlonglong orderId = ds->insertRow(QStringLiteral("orders"), order);
+    QVERIFY(orderId > 0);
+
+    UserMainWindow mainWin;
+    mainWin.show();
+    QVERIFY(QTest::qWaitForWindowExposed(&mainWin));
+    QStackedWidget *stack = find<QStackedWidget>(&mainWin, "pageStack");
+    QVERIFY(stack);
+
+    // 点"充电"导航 → 有未完成订单 → 弹提示(守卫关掉) → 自动跳到订单页
+    QPushButton *navCharge = find<QPushButton>(&mainWin, "navChargeBtn");
+    QVERIFY(navCharge);
+    QTest::mouseClick(navCharge, Qt::LeftButton);
+    QTest::qWait(50);
+    QCOMPARE(stack->currentIndex(), 3); // 订单页
+
+    // 订单列表里应能看到这条"充电中"订单,可结算
+    QListWidget *orderList = find<QListWidget>(&mainWin, "orderList");
+    QPushButton *settleBtn = find<QPushButton>(&mainWin, "settleBtn");
+    QVERIFY(orderList && settleBtn);
+    QCOMPARE(orderList->count(), 1);
+    orderList->setCurrentRow(0);
+    QVERIFY(settleBtn->isEnabled());
+
+    // 结算 → 完成
+    QTest::mouseClick(settleBtn, Qt::LeftButton);
+    QTest::qWait(50);
+    const QueryResult done = ds->query(QStringLiteral("orders"), {},
+        QStringLiteral("id = ?"), QVariantList{orderId});
+    QCOMPARE(done.first().value(QStringLiteral("status")).toString(), QStringLiteral("已完成"));
 }
 
 QTEST_MAIN(GuiFlowTest)

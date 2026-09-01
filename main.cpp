@@ -48,6 +48,13 @@ int main(int argc, char *argv[])
             mainWin->setAttribute(Qt::WA_DeleteOnClose);
             mainWin->show();
             login->close(); // DeleteOnClose → 登录窗口自动销毁
+
+            // 退出登录 → 回到角色选择页,再次选择
+            QObject::connect(mainWin, &UserMainWindow::logoutRequested, &app,
+                             [&, mainWin] {
+                roleSelect.show();
+                mainWin->close(); // DeleteOnClose → 主窗口自动销毁
+            });
         });
         login->show();
         roleSelect.hide();

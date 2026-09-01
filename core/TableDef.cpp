@@ -45,11 +45,12 @@ QVector<TableDef> allTableDefs()
     TableDef stations;
     stations.tableName = QStringLiteral("charging_stations");
     stations.columns = {
-        ColumnDef(QStringLiteral("id"),      QStringLiteral("INTEGER"), true,  true),
-        ColumnDef(QStringLiteral("name"),    QStringLiteral("TEXT"),    false, false, true),
-        ColumnDef(QStringLiteral("address"), QStringLiteral("TEXT"),    false, false, true),
-        ColumnDef(QStringLiteral("lat"),     QStringLiteral("REAL")),
-        ColumnDef(QStringLiteral("lng"),     QStringLiteral("REAL")),
+        ColumnDef(QStringLiteral("id"),            QStringLiteral("INTEGER"), true,  true),
+        ColumnDef(QStringLiteral("name"),          QStringLiteral("TEXT"),    false, false, true),
+        ColumnDef(QStringLiteral("address"),       QStringLiteral("TEXT"),    false, false, true),
+        ColumnDef(QStringLiteral("lat"),           QStringLiteral("REAL")),
+        ColumnDef(QStringLiteral("lng"),           QStringLiteral("REAL")),
+        ColumnDef(QStringLiteral("price_per_kwh"), QStringLiteral("REAL"),    false, false, true,  false, QStringLiteral("1.0")),
     };
     defs << stations;
 
@@ -57,13 +58,15 @@ QVector<TableDef> allTableDefs()
     TableDef piles;
     piles.tableName = QStringLiteral("charging_piles");
     piles.columns = {
-        ColumnDef(QStringLiteral("id"),            QStringLiteral("INTEGER"), true,  true),
-        ColumnDef(QStringLiteral("station_id"),    QStringLiteral("INTEGER"), false, false, true),
-        ColumnDef(QStringLiteral("code"),          QStringLiteral("TEXT"),    false, false, true),
-        ColumnDef(QStringLiteral("type"),          QStringLiteral("TEXT"),    false, false, true),
-        ColumnDef(QStringLiteral("power_kw"),      QStringLiteral("REAL")),
-        ColumnDef(QStringLiteral("price_per_kwh"), QStringLiteral("REAL"),    false, false, true),
-        ColumnDef(QStringLiteral("status"),        QStringLiteral("TEXT"),    false, false, false, false, QStringLiteral("'空闲'")),
+        ColumnDef(QStringLiteral("id"),                  QStringLiteral("INTEGER"), true,  true),
+        ColumnDef(QStringLiteral("station_id"),          QStringLiteral("INTEGER"), false, false, true),
+        ColumnDef(QStringLiteral("code"),                QStringLiteral("TEXT"),    false, false, true),
+        ColumnDef(QStringLiteral("type"),                QStringLiteral("TEXT"),    false, false, true),
+        ColumnDef(QStringLiteral("power_kw"),            QStringLiteral("REAL")),
+        ColumnDef(QStringLiteral("price_per_kwh"),       QStringLiteral("REAL"),    false, false, true),
+        ColumnDef(QStringLiteral("status"),              QStringLiteral("TEXT"),    false, false, false, false, QStringLiteral("'空闲'")),
+        ColumnDef(QStringLiteral("charge_count"),        QStringLiteral("INTEGER"), false, false, false, false, QStringLiteral("0")),
+        ColumnDef(QStringLiteral("charge_duration_min"), QStringLiteral("INTEGER"), false, false, false, false, QStringLiteral("0")),
     };
     defs << piles;
 

@@ -1,0 +1,75 @@
+/* ============================================================
+ * admin.qss —— 管理员端(桌面风格 1200x800)
+ * 强调色:专业蓝 #4a6cf7
+ * ============================================================ */
+
+/* 整体浅灰底 */
+AdminMainWindow {
+    background: #f1f4f9;
+}
+
+/* ---------- 顶部标签页 ---------- */
+QTabWidget::pane {
+    border: none;
+    background: #f1f4f9;
+    top: -1px;
+}
+QTabBar {
+    background: transparent;
+}
+QTabBar::tab {
+    background: transparent;
+    color: #64748b;
+    font-size: 15px;
+    padding: 12px 22px;
+    margin-right: 6px;
+    border: none;
+    border-bottom: 3px solid transparent;
+}
+QTabBar::tab:selected {
+    color: #4a6cf7;
+    font-weight: 700;
+    border-bottom: 3px solid #4a6cf7;
+}
+QTabBar::tab:hover:!selected {
+    color: #334155;
+}
+
+/* ---------- 各页标题(左侧色条) ---------- */
+AdminMainWindow #pageTitleLabel {
+    font-size: 21px;
+    font-weight: 700;
+    color: #1f2a44;
+    border-left: 4px solid #4a6cf7;
+    padding-left: 10px;
+}
+
+/* ---------- 工具栏的小按钮/组合框留白 ---------- */
+AdminMainWindow QComboBox {
+    min-width: 90px;
+}
+
+/* ---------- 销售统计页 ---------- */
+#summaryCard {
+    background: #ffffff;
+    border: 1px solid #e3e8ef;
+    border-radius: 12px;
+}
+#summaryCaptionLabel {
+    color: #7a8698;
+    font-size: 12px;
+}
+#summaryValueLabel {
+    color: #2a3550;
+    font-size: 22px;
+    font-weight: 700;
+}
+SalesPage QChartView {
+    background: #ffffff;
+    border: 1px solid #e3e8ef;
+    border-radius: 10px;
+}
+SalesPage #placeholderLabel {
+    color: #7a8698;
+    font-size: 15px;
+}

@@ -37,6 +37,10 @@ public:
 
 private:
     bool createTablesIfNeeded();
+    // 旧库补列:CREATE TABLE IF NOT EXISTS 只建表不补列,
+    // 旧版本生成的库会缺新版新增的列(曾导致写入静默失败)。
+    // 对照表定义,用 PRAGMA 找出缺失列并 ALTER TABLE ADD COLUMN 自动补齐。
+    bool migrateMissingColumns();
 
     QSqlDatabase m_db;
     QString m_dbPath;

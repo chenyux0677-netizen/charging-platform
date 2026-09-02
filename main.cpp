@@ -15,12 +15,17 @@ namespace {
 // 管理员端内嵌服务器的固定端口(用户端在角色选择页填同样的端口)
 constexpr quint16 kDefaultPort = 9527;
 
-// 应用样式表;文件为空也没关系(骨架期仅接线,第 ⑤ 步再写 QSS)
-void applyStyle(const QString &qrcPath)
+// 把若干 qrc 内的样式文件拼接成一个样式表(后者覆盖前者)。
+// common.qss 是两端共用基底,user/admin.qss 是其上的模式覆盖。
+void applyStyle(const QStringList &qrcPaths)
 {
-    QFile file(qrcPath);
-    if (file.open(QIODevice::ReadOnly))
-        qApp->setStyleSheet(QString::fromUtf8(file.readAll()));
+    QString css;
+    for (const QString &path : qrcPaths) {
+        QFile file(path);
+        if (file.open(QIODevice::ReadOnly))
+            css += QString::fromUtf8(file.readAll()) + QLatin1Char('\n');
+    }
+    qApp->setStyleSheet(css);
 }
 } // namespace
 
@@ -28,7 +33,8 @@ int main(int argc, char *argv[])
 {
     QApplication app(argc, argv);
 
-    // 1) 启动页:先选角色
+    // 1) 启动页:先套共用基底样式,再显示角色选择(否则首屏无样式)
+    applyStyle({QStringLiteral(":/styles/common.qss")});
     RoleSelectWindow roleSelect;
     roleSelect.show();
 
@@ -36,7 +42,8 @@ int main(int argc, char *argv[])
     QObject::connect(&roleSelect, &RoleSelectWindow::userModeSelected, &app,
                      [&](const QString &host, quint16 port) {
         AppContext::instance()->setServer(host, port);
-        applyStyle(QStringLiteral(":/styles/user.qss"));
+        applyStyle({QStringLiteral(":/styles/common.qss"),
+                    QStringLiteral(":/styles/user.qss")});
 
         auto *login = new UserLoginWindow;
         login->setAttribute(Qt::WA_DeleteOnClose);
@@ -72,7 +79,8 @@ int main(int argc, char *argv[])
             return;
         }
         AppContext::instance()->setServer(QStringLiteral("127.0.0.1"), kDefaultPort);
-        applyStyle(QStringLiteral(":/styles/admin.qss"));
+        applyStyle({QStringLiteral(":/styles/common.qss"),
+                    QStringLiteral(":/styles/admin.qss")});
 
         auto *login = new AdminLoginWindow;
         login->setAttribute(Qt::WA_DeleteOnClose);

@@ -110,6 +110,6 @@ void OrderPage::onSettleClicked()
                                  QStringLiteral("订单已结算。"));
     else
         QMessageBox::warning(this, QStringLiteral("结算失败"),
-                             QStringLiteral("该订单不是充电中状态或结算失败。"));
+                             QStringLiteral("余额不足、订单状态异常或结算失败。"));
     refresh();
 }

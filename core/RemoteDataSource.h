@@ -43,6 +43,13 @@ public:
     int removeRows(const QString &table,
                    const QString &where,
                    const QVariantList &bindValues = {}) override;
+    bool loginAdmin(const QString &username, const QString &password) override;
+    DataRow loginUser(const QString &phone) override;
+    bool rechargeBalance(qlonglong userId, double amount) override;
+    qlonglong startCharge(qlonglong userId, qlonglong pileId) override;
+    bool settleCharge(qlonglong orderId) override;
+    bool removeChargingPile(qlonglong pileId) override;
+    bool removeChargingStation(qlonglong stationId) override;
 
 signals:
     void connected();

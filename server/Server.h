@@ -36,6 +36,12 @@ private slots:
     void onClientDisconnected();
 
 private:
+    struct ClientSession {
+        enum Role { None, User, Admin } role = None;
+        qlonglong userId = 0;
+        QString adminUsername;
+    };
+
     void handleMessage(QTcpSocket *client, const QJsonObject &msg);
     void sendToClient(QTcpSocket *client, const QJsonObject &msg);
     void broadcastDataChanged(const QString &table);
@@ -44,6 +50,7 @@ private:
     QTcpServer *m_server = nullptr;
     QSet<QTcpSocket *> m_clients;            // 在线客户端集合
     QHash<QTcpSocket *, QByteArray> m_buffers; // 每个客户端未解完的收包缓冲
+    QHash<QTcpSocket *, ClientSession> m_sessions; // 身份与 TCP 连接绑定
 };
 
 #endif // SERVER_H

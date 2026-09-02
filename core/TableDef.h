@@ -2,6 +2,7 @@
 #define TABLEDEF_H
 
 #include <QString>
+#include <QStringList>
 #include <QVector>
 
 // 一列的字段定义
@@ -29,6 +30,8 @@ struct TableDef
 {
     QString tableName;          // 表名
     QVector<ColumnDef> columns; // 字段清单
+    QStringList constraints;    // 外键、联合唯一、CHECK 等表级约束
+    QStringList indexes;        // 建表完成后执行的 CREATE INDEX 语句
 
     // 生成 CREATE TABLE IF NOT EXISTS 语句
     QString createTableSql() const;

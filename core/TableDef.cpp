@@ -19,6 +19,7 @@ QString TableDef::createTableSql() const
             d += QStringLiteral(" DEFAULT ") + c.defaultValue;
         colDefs << d;
     }
+    colDefs << constraints;
     return QStringLiteral("CREATE TABLE IF NOT EXISTS %1 (\n    %2\n);")
         .arg(tableName, colDefs.join(QStringLiteral(",\n    ")));
 }
@@ -39,6 +40,10 @@ QVector<TableDef> allTableDefs()
         ColumnDef(QStringLiteral("status"),     QStringLiteral("TEXT"),    false, false, false, false, QStringLiteral("'正常'")),
         ColumnDef(QStringLiteral("created_at"), QStringLiteral("TEXT"),    false, false, false, false, QStringLiteral("(datetime('now','localtime'))")),
     };
+    users.constraints = {
+        QStringLiteral("CHECK (status IN ('正常', '冻结'))"),
+        QStringLiteral("CHECK (balance >= 0)")
+    };
     defs << users;
 
     // ===== 充电站表 =====
@@ -50,7 +55,10 @@ QVector<TableDef> allTableDefs()
         ColumnDef(QStringLiteral("address"),       QStringLiteral("TEXT"),    false, false, true),
         ColumnDef(QStringLiteral("lat"),           QStringLiteral("REAL")),
         ColumnDef(QStringLiteral("lng"),           QStringLiteral("REAL")),
-        ColumnDef(QStringLiteral("price_per_kwh"), QStringLiteral("REAL"),    false, false, true,  false, QStringLiteral("1.0")),
+    };
+    stations.constraints = {
+        QStringLiteral("CHECK (lat IS NULL OR lat BETWEEN -90 AND 90)"),
+        QStringLiteral("CHECK (lng IS NULL OR lng BETWEEN -180 AND 180)")
     };
     defs << stations;
 
@@ -62,11 +70,20 @@ QVector<TableDef> allTableDefs()
         ColumnDef(QStringLiteral("station_id"),          QStringLiteral("INTEGER"), false, false, true),
         ColumnDef(QStringLiteral("code"),                QStringLiteral("TEXT"),    false, false, true),
         ColumnDef(QStringLiteral("type"),                QStringLiteral("TEXT"),    false, false, true),
-        ColumnDef(QStringLiteral("power_kw"),            QStringLiteral("REAL")),
+        ColumnDef(QStringLiteral("power_kw"),            QStringLiteral("REAL"),    false, false, true),
         ColumnDef(QStringLiteral("price_per_kwh"),       QStringLiteral("REAL"),    false, false, true),
         ColumnDef(QStringLiteral("status"),              QStringLiteral("TEXT"),    false, false, false, false, QStringLiteral("'空闲'")),
         ColumnDef(QStringLiteral("charge_count"),        QStringLiteral("INTEGER"), false, false, false, false, QStringLiteral("0")),
         ColumnDef(QStringLiteral("charge_duration_min"), QStringLiteral("INTEGER"), false, false, false, false, QStringLiteral("0")),
+    };
+    piles.constraints = {
+        QStringLiteral("FOREIGN KEY (station_id) REFERENCES charging_stations(id) ON DELETE RESTRICT"),
+        QStringLiteral("UNIQUE (station_id, code)"),
+        QStringLiteral("CHECK (power_kw > 0)"),
+        QStringLiteral("CHECK (price_per_kwh > 0)"),
+        QStringLiteral("CHECK (status IN ('空闲', '使用中', '故障'))"),
+        QStringLiteral("CHECK (charge_count >= 0)"),
+        QStringLiteral("CHECK (charge_duration_min >= 0)")
     };
     defs << piles;
 
@@ -83,15 +100,29 @@ QVector<TableDef> allTableDefs()
         ColumnDef(QStringLiteral("amount"),     QStringLiteral("REAL"),    false, false, false, false, QStringLiteral("0")),
         ColumnDef(QStringLiteral("status"),     QStringLiteral("TEXT"),    false, false, false, false, QStringLiteral("'充电中'")),
     };
+    orders.constraints = {
+        QStringLiteral("FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE RESTRICT"),
+        QStringLiteral("FOREIGN KEY (pile_id) REFERENCES charging_piles(id) ON DELETE RESTRICT"),
+        QStringLiteral("CHECK (energy_kwh >= 0)"),
+        QStringLiteral("CHECK (amount >= 0)"),
+        QStringLiteral("CHECK (status IN ('充电中', '已完成'))")
+    };
+    orders.indexes = {
+        QStringLiteral("CREATE UNIQUE INDEX IF NOT EXISTS idx_orders_active_user "
+                       "ON orders(user_id) WHERE status = '充电中'"),
+        QStringLiteral("CREATE UNIQUE INDEX IF NOT EXISTS idx_orders_active_pile "
+                       "ON orders(pile_id) WHERE status = '充电中'")
+    };
     defs << orders;
 
     // ===== 管理员表(账号密码登录) =====
     TableDef admins;
     admins.tableName = QStringLiteral("admins");
     admins.columns = {
-        ColumnDef(QStringLiteral("id"),       QStringLiteral("INTEGER"), true,  true),
-        ColumnDef(QStringLiteral("username"), QStringLiteral("TEXT"),    false, false, true, true),
-        ColumnDef(QStringLiteral("password"), QStringLiteral("TEXT"),    false, false, true),
+        ColumnDef(QStringLiteral("id"),            QStringLiteral("INTEGER"), true,  true),
+        ColumnDef(QStringLiteral("username"),      QStringLiteral("TEXT"),    false, false, true, true),
+        ColumnDef(QStringLiteral("password_salt"), QStringLiteral("TEXT"),    false, false, true),
+        ColumnDef(QStringLiteral("password_hash"), QStringLiteral("TEXT"),    false, false, true),
     };
     defs << admins;
 

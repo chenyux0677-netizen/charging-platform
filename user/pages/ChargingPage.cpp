@@ -126,23 +126,14 @@ void ChargingPage::startCharging()
 
     const qlonglong userId =
         AppContext::instance()->currentUser().value(QStringLiteral("id")).toLongLong();
-    QHash<QString, QVariant> order;
-    order.insert(QStringLiteral("user_id"), userId);
-    order.insert(QStringLiteral("pile_id"), m_pile.value(QStringLiteral("id")).toLongLong());
-    order.insert(QStringLiteral("start_time"),
-                 QDateTime::currentDateTime().toString(Qt::ISODate));
-    const qlonglong orderId = ds->insertRow(QStringLiteral("orders"), order);
+    const qlonglong orderId = ds->startCharge(
+        userId, m_pile.value(QStringLiteral("id")).toLongLong());
     if (orderId <= 0) {
         QMessageBox::warning(this, QStringLiteral("提示"),
-                             QStringLiteral("创建充电订单失败,请稍后重试。"));
+                             QStringLiteral("开始充电失败，该充电桩可能已被占用，"
+                                            "或当前账号已有进行中的订单。"));
         return;
     }
-
-    QHash<QString, QVariant> up;
-    up.insert(QStringLiteral("status"), QStringLiteral("使用中"));
-    ds->updateRows(QStringLiteral("charging_piles"), up,
-                   QStringLiteral("id = ?"),
-                   QVariantList{m_pile.value(QStringLiteral("id")).toLongLong()});
 
     m_orderId = orderId;
     m_charging = true;
@@ -171,7 +162,7 @@ void ChargingPage::stopCharging()
         return;
     m_timer->stop();
     DataSource *ds = AppContext::instance()->dataSource();
-    const bool ok = ds && ChargeService::settleOrder(ds, m_orderId, m_minutes);
+    const bool ok = ds && ChargeService::settleOrder(ds, m_orderId);
     m_charging = false;
     m_orderId = 0;
     m_startChargeBtn->setEnabled(!m_pile.isEmpty());
@@ -182,6 +173,6 @@ void ChargingPage::stopCharging()
                                  QStringLiteral("充电已结束,结算明细请在订单页查看。"));
     else
         QMessageBox::warning(this, QStringLiteral("结算失败"),
-                             QStringLiteral("结算失败,请到订单页手动处理。"));
+                             QStringLiteral("结算失败，可能余额不足；请充值后到订单页处理。"));
     emit backToStations();
 }

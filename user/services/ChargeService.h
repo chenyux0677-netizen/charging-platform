@@ -13,10 +13,8 @@
 // 因此进程重启后也能正确结算。
 namespace ChargeService {
 
-// 结算指定订单;成功返回 true。订单不存在或非"充电中"时返回 false。
-// simulatedMinutes > 0 时用它作为时长(与用户端界面计时完全一致);
-// 否则(如进程重启后恢复结算)用"开始时间 → 当前时间"的经过秒数折算。
-bool settleOrder(DataSource *ds, qlonglong orderId, double simulatedMinutes = 0.0);
+// 结算指定订单；时长和费用全部由服务器计算。
+bool settleOrder(DataSource *ds, qlonglong orderId);
 
 } // namespace ChargeService
 

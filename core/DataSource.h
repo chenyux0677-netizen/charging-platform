@@ -44,6 +44,26 @@ public:
                            const QString &where,
                            const QVariantList &bindValues = {}) = 0;
 
+    // 登录必须交给数据源/服务器完成，界面不能直接查询账号表。
+    virtual bool loginAdmin(const QString &username, const QString &password) = 0;
+    // 手机号不存在时原子注册并登录；失败或账号冻结返回空行。
+    virtual DataRow loginUser(const QString &phone) = 0;
+
+    // 余额只能通过服务端增量充值，不能由客户端直接覆盖。
+    virtual bool rechargeBalance(qlonglong userId, double amount) = 0;
+
+    // 核心充电业务必须由服务器原子执行，不能由界面拼接多次 CRUD。
+    // startCharge 成功返回新订单 id，失败（用户已有订单/桩非空闲等）返回 -1。
+    virtual qlonglong startCharge(qlonglong userId, qlonglong pileId) = 0;
+
+    // 原子完成订单、释放电桩、累计统计并扣减余额。
+    // 服务端按订单开始时间计算模拟时长（现实 1 秒 = 模拟 1 分钟）。
+    virtual bool settleCharge(qlonglong orderId) = 0;
+
+    // 管理端安全删除：有关联订单或正在使用时拒绝，避免产生孤儿数据。
+    virtual bool removeChargingPile(qlonglong pileId) = 0;
+    virtual bool removeChargingStation(qlonglong stationId) = 0;
+
 signals:
     // 任何成功写入(增/删/改)后发出,携带表名 —— 两端界面据此刷新
     void dataChanged(const QString &table);

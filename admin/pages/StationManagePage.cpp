@@ -22,13 +22,12 @@ StationManagePage::StationManagePage(QWidget *parent)
     title->setObjectName(QStringLiteral("pageTitleLabel"));
 
     m_table = new QTableWidget(this);
-    m_table->setColumnCount(6);
+    m_table->setColumnCount(5);
     m_table->setHorizontalHeaderLabels({QStringLiteral("ID"),
                                         QStringLiteral("名称"),
                                         QStringLiteral("地址"),
                                         QStringLiteral("纬度"),
-                                        QStringLiteral("经度"),
-                                        QStringLiteral("单价(元/度)")});
+                                        QStringLiteral("经度")});
     m_table->setSelectionBehavior(QAbstractItemView::SelectRows);
     m_table->setSelectionMode(QAbstractItemView::SingleSelection);
     m_table->setEditTriggers(QAbstractItemView::NoEditTriggers);
@@ -85,7 +84,6 @@ void StationManagePage::refresh()
         put(2, st.value(QStringLiteral("address")));
         put(3, QString::number(st.value(QStringLiteral("lat")).toDouble(), 'f', 6));
         put(4, QString::number(st.value(QStringLiteral("lng")).toDouble(), 'f', 6));
-        put(5, QString::number(st.value(QStringLiteral("price_per_kwh")).toDouble(), 'f', 2));
     }
 }
 
@@ -108,19 +106,11 @@ QHash<QString, QVariant> StationManagePage::editStationDialog(const QHash<QStrin
     lngSpin->setDecimals(6);
     lngSpin->setValue(initial.value(QStringLiteral("lng")).toDouble());
 
-    auto *priceSpin = new QDoubleSpinBox(&dlg);
-    priceSpin->setRange(0.01, 999.0);
-    priceSpin->setDecimals(2);
-    priceSpin->setValue(initial.value(QStringLiteral("price_per_kwh")).isValid()
-                            ? initial.value(QStringLiteral("price_per_kwh")).toDouble()
-                            : 1.0);
-
     auto *form = new QFormLayout;
     form->addRow(QStringLiteral("名称 *"), nameEdit);
     form->addRow(QStringLiteral("地址 *"), addrEdit);
     form->addRow(QStringLiteral("纬度"), latSpin);
     form->addRow(QStringLiteral("经度"), lngSpin);
-    form->addRow(QStringLiteral("单价(元/度)"), priceSpin);
 
     auto *btnBox = new QDialogButtonBox(QDialogButtonBox::Ok | QDialogButtonBox::Cancel, &dlg);
     connect(btnBox, &QDialogButtonBox::accepted, &dlg, &QDialog::accept);
@@ -143,7 +133,6 @@ QHash<QString, QVariant> StationManagePage::editStationDialog(const QHash<QStrin
     values.insert(QStringLiteral("address"), addrEdit->text().trimmed());
     values.insert(QStringLiteral("lat"), latSpin->value());
     values.insert(QStringLiteral("lng"), lngSpin->value());
-    values.insert(QStringLiteral("price_per_kwh"), priceSpin->value());
     return values;
 }
 
@@ -208,8 +197,9 @@ void StationManagePage::onRemove()
     DataSource *ds = AppContext::instance()->dataSource();
     if (!ds)
         return;
-    ds->removeRows(QStringLiteral("charging_piles"),
-                   QStringLiteral("station_id = ?"), QVariantList{id});
-    ds->removeRows(QStringLiteral("charging_stations"),
-                   QStringLiteral("id = ?"), QVariantList{id});
+    if (!ds->removeChargingStation(id)) {
+        QMessageBox::warning(
+            this, QStringLiteral("无法删除"),
+            QStringLiteral("该电站包含正在使用或已有订单记录的充电桩，不能删除。"));
+    }
 }

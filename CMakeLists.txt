@@ -24,6 +24,8 @@ set(PROJECT_SOURCES
     core/LocalDataSource.cpp
     core/RemoteDataSource.h
     core/RemoteDataSource.cpp
+    core/PasswordHasher.h
+    core/PasswordHasher.cpp
     core/TableDef.h
     core/TableDef.cpp
     core/GenericTableModel.h
@@ -111,6 +113,8 @@ qt_add_executable(net_selftest
     core/LocalDataSource.cpp
     core/RemoteDataSource.h
     core/RemoteDataSource.cpp
+    core/PasswordHasher.h
+    core/PasswordHasher.cpp
     common/Protocol.h
     common/Protocol.cpp
     server/Server.h
@@ -130,9 +134,12 @@ qt_add_executable(db_selftest
     core/TableDef.cpp
     core/LocalDataSource.h
     core/LocalDataSource.cpp
+    core/PasswordHasher.h
+    core/PasswordHasher.cpp
 )
 target_link_libraries(db_selftest PRIVATE
     Qt${QT_VERSION_MAJOR}::Sql
+    Qt${QT_VERSION_MAJOR}::Network
 )
 
 # ---- 界面自检(脚本化点击登录链路,独立小程序,不属于主程序) ----
@@ -146,6 +153,8 @@ qt_add_executable(gui_flow_test
     core/LocalDataSource.cpp
     core/RemoteDataSource.h
     core/RemoteDataSource.cpp
+    core/PasswordHasher.h
+    core/PasswordHasher.cpp
     common/Protocol.h
     common/Protocol.cpp
     common/AppContext.h

@@ -47,21 +47,22 @@ int main(int argc, char *argv[])
     const quint16 actualPort = server.port();
     check(actualPort > 0, QStringLiteral("服务器监听端口 = %1").arg(actualPort));
 
-    out << "\n[2/6] 客户端A 连接并插入用户\n";
+    out << "\n[2/6] 客户端A 连接、验证未登录拦截并登录用户\n";
     RemoteDataSource clientA;
     check(clientA.connectToServer(QStringLiteral("127.0.0.1"), actualPort),
           "客户端A 连接成功");
-
-    QHash<QString, QVariant> user;
-    user.insert(QStringLiteral("phone"), QStringLiteral("13800138000"));
-    user.insert(QStringLiteral("nickname"), QStringLiteral("用户8000"));
-    user.insert(QStringLiteral("balance"), 100.0);
-    const qlonglong uid = clientA.insertRow(QStringLiteral("users"), user);
-    check(uid > 0, QStringLiteral("客户端A 经网络插入用户, id = %1").arg(uid));
+    check(clientA.query(QStringLiteral("charging_stations")).isEmpty(),
+          "未登录查询被拒绝");
+    check(clientA.loginUser(QStringLiteral("abcdefghijk")).isEmpty(),
+          "服务器拒绝非数字手机号");
+    const DataRow loggedUser = clientA.loginUser(QStringLiteral("13800138000"));
+    const qlonglong uid = loggedUser.value(QStringLiteral("id")).toLongLong();
+    check(uid > 0, QStringLiteral("手机号注册并登录, id = %1").arg(uid));
+    check(clientA.rechargeBalance(uid, 100.0), "用户通过服务端业务接口充值 100 元");
 
     out << "\n[3/6] 客户端A 查询\n";
     QueryResult rows = clientA.query(QStringLiteral("users"),
-                                     {QStringLiteral("phone"), QStringLiteral("nickname"), QStringLiteral("balance")},
+                                     {},
                                      QStringLiteral("id = ?"), QVariantList{uid});
     check(rows.size() == 1, QStringLiteral("客户端A 查到 %1 行").arg(rows.size()));
     if (rows.size() == 1) {
@@ -74,34 +75,47 @@ int main(int argc, char *argv[])
         check(r.value(QStringLiteral("balance")).toDouble() == 100.0, "余额正确(100)");
     }
 
-    out << "\n[4/6] 客户端B 连接(模拟另一台设备)\n";
+    // 用户不能通过通用更新覆盖余额，也不能读取管理员表。
+    QHash<QString, QVariant> forgedBalance;
+    forgedBalance.insert(QStringLiteral("balance"), 999999.0);
+    check(clientA.updateRows(QStringLiteral("users"), forgedBalance,
+                             QStringLiteral("id = ?"), {uid}) == 0,
+          "用户直接覆盖余额被拒绝");
+    check(clientA.query(QStringLiteral("admins")).isEmpty(),
+          "用户读取管理员表被拒绝");
+
+    out << "\n[4/6] 客户端B 以管理员身份连接\n";
     RemoteDataSource clientB;
     int notifyCount = 0;
     QString notifiedTable;
-    QObject::connect(&clientB, &DataSource::dataChanged, [&](const QString &t) {
+    QObject::connect(&clientA, &DataSource::dataChanged, [&](const QString &t) {
         ++notifyCount;
         notifiedTable = t;
     });
     check(clientB.connectToServer(QStringLiteral("127.0.0.1"), actualPort),
           "客户端B 连接成功");
+    check(clientB.loginAdmin(QStringLiteral("admin"), QStringLiteral("123456")),
+          "客户端B 管理员登录成功");
+    check(clientB.query(QStringLiteral("admins")).isEmpty(),
+          "管理员账号凭据不通过网络查询接口暴露");
 
     out << "\n[5/6] 客户端A 改数据 → 服务器广播 → 客户端B 实时收到\n";
     QHash<QString, QVariant> up;
     up.insert(QStringLiteral("balance"), 50.0);
-    const int affected = clientA.updateRows(QStringLiteral("users"), up,
+    const int affected = clientB.updateRows(QStringLiteral("users"), up,
                                             QStringLiteral("id = ?"), QVariantList{uid});
-    check(affected == 1, "客户端A 更新余额 100→50 成功");
+    check(affected == 1, "管理员更新余额 100→50 成功");
     spin(200); // 给广播一点到达时间
-    check(notifyCount >= 1, QStringLiteral("客户端B 收到 %1 次 dataChanged 广播").arg(notifyCount));
+    check(notifyCount >= 1, QStringLiteral("客户端A 收到 %1 次 dataChanged 广播").arg(notifyCount));
     check(notifiedTable == QStringLiteral("users"), "通知的表名 = users");
 
     out << "\n[6/6] 客户端B 查询更新后的数据(数据共享)\n";
-    QueryResult bRows = clientB.query(QStringLiteral("users"),
+    QueryResult bRows = clientA.query(QStringLiteral("users"),
                                       {QStringLiteral("balance")},
                                       QStringLiteral("id = ?"), QVariantList{uid});
     check(bRows.size() == 1
               && bRows.first().value(QStringLiteral("balance")).toDouble() == 50.0,
-          "客户端B 查到余额 = 50(与客户端A 一致)");
+          "客户端A 查到余额 = 50(与管理员修改一致)");
 
     out << "\n=== 自检" << (g_fail == 0 ? QStringLiteral("通过 ✅")
                                        : QStringLiteral("失败(%1 项) ❌").arg(g_fail))

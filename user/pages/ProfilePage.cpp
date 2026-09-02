@@ -111,15 +111,11 @@ void ProfilePage::onRecharge()
 
     const qlonglong id =
         AppContext::instance()->currentUser().value(QStringLiteral("id")).toLongLong();
-    const QueryResult rows = ds->query(QStringLiteral("users"), {},
-                                       QStringLiteral("id = ?"), QVariantList{id});
-    if (rows.isEmpty())
+    if (!ds->rechargeBalance(id, amount)) {
+        QMessageBox::warning(this, QStringLiteral("充值失败"),
+                             QStringLiteral("充值金额无效或账号不可用。"));
         return;
-    QHash<QString, QVariant> up;
-    up.insert(QStringLiteral("balance"),
-              rows.first().value(QStringLiteral("balance")).toDouble() + amount);
-    ds->updateRows(QStringLiteral("users"), up,
-                   QStringLiteral("id = ?"), QVariantList{id});
+    }
     reloadUser();
     QMessageBox::information(this, QStringLiteral("充值成功"),
                              QStringLiteral("已充值 %1 元。").arg(amount, 0, 'f', 2));

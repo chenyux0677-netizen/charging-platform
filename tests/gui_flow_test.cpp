@@ -4,6 +4,7 @@
 // 数据走真实 TCP + SQLite,与主程序共用同一套代码路径。
 #include "common/AppContext.h"
 #include "common/RoleSelectWindow.h"
+#include "core/RemoteDataSource.h"
 
 #include "admin/AdminLoginWindow.h"
 #include "admin/AdminMainWindow.h"
@@ -56,6 +57,7 @@ private slots:
     void chargingSeedTest();
     void chargeFlow();
     void unfinishedOrderCheck();
+    void crashRecovery();
 
 private:
     // 周期守卫:测试中一旦冒出模态提示框,30ms 内自动关掉。
@@ -205,8 +207,9 @@ void GuiFlowTest::userLoginFlow()
 
     // 库里该手机号只有一行(只注册过一次)
     DataSource *ds = AppContext::instance()->dataSource();
+    const qlonglong loggedUserId = gotUser.value(QStringLiteral("id")).toLongLong();
     QueryResult rows = ds->query(QStringLiteral("users"), {},
-                                 QStringLiteral("phone = ?"), QVariantList{phone});
+                                 QStringLiteral("id = ?"), QVariantList{loggedUserId});
     QCOMPARE(rows.size(), 1);
 
     // 同一手机号再登录 → 不重复注册,仍成功
@@ -214,7 +217,7 @@ void GuiFlowTest::userLoginFlow()
     QTest::mouseClick(loginBtn, Qt::LeftButton);
     QVERIFY(gotSignal);
     rows = ds->query(QStringLiteral("users"), {},
-                     QStringLiteral("phone = ?"), QVariantList{phone});
+                     QStringLiteral("id = ?"), QVariantList{loggedUserId});
     QCOMPARE(rows.size(), 1);
 
     // 用户主界面:页面栈 5 页(电站列表 / 电站详情 / 充电 / 订单 / 我的)
@@ -237,13 +240,13 @@ void GuiFlowTest::chargingSeedTest()
     QVERIFY(AppContext::instance()->connectIfNeeded());
     DataSource *ds = AppContext::instance()->dataSource();
     QVERIFY(ds);
+    QVERIFY(ds->loginAdmin(QStringLiteral("admin"), QStringLiteral("123456")));
 
     // 种子电站
     const QueryResult stations = ds->query(QStringLiteral("charging_stations"));
     QVERIFY(stations.size() >= 3);
     const DataRow st = stations.first();
-    QVERIFY(st.contains(QStringLiteral("price_per_kwh")));
-    QVERIFY(st.value(QStringLiteral("price_per_kwh")).toDouble() > 0.0);
+    QVERIFY(!st.contains(QStringLiteral("price_per_kwh")));
 
     // 种子电桩:每站有桩,累计字段存在且初值为 0
     const QueryResult piles = ds->query(QStringLiteral("charging_piles"));
@@ -251,12 +254,11 @@ void GuiFlowTest::chargingSeedTest()
     const DataRow p = piles.first();
     QVERIFY(p.contains(QStringLiteral("charge_count")));
     QVERIFY(p.contains(QStringLiteral("charge_duration_min")));
+    QVERIFY(p.value(QStringLiteral("price_per_kwh")).toDouble() > 0.0);
     QCOMPARE(p.value(QStringLiteral("charge_count")).toLongLong(), 0LL);
 
-    // 默认管理员仍在
-    const QueryResult admins = ds->query(QStringLiteral("admins"), {},
-                                         QStringLiteral("username = 'admin'"));
-    QCOMPARE(admins.size(), 1);
+    // 管理员已在本用例开头通过专用登录接口验证；账号表不允许通用查询。
+    QVERIFY(ds->query(QStringLiteral("admins")).isEmpty());
 }
 
 // ---- ⑤ 完整充电链路:选站 → 选桩 → 开始 → 进度 → 结束结算 ----
@@ -272,13 +274,11 @@ void GuiFlowTest::chargeFlow()
     DataSource *ds = AppContext::instance()->dataSource();
     QVERIFY(ds);
 
-    // 造一个带余额的测试用户并设为当前登录用户
-    QHash<QString, QVariant> u;
-    u.insert(QStringLiteral("phone"), QStringLiteral("13900000001"));
-    u.insert(QStringLiteral("nickname"), QStringLiteral("测试用户"));
-    u.insert(QStringLiteral("balance"), 100.0);
-    const qlonglong userId = ds->insertRow(QStringLiteral("users"), u);
+    // 通过真实用户会话注册并充值，不能再绕过服务器直接写用户表。
+    const DataRow loggedUser = ds->loginUser(QStringLiteral("13900000001"));
+    const qlonglong userId = loggedUser.value(QStringLiteral("id")).toLongLong();
     QVERIFY(userId > 0);
+    QVERIFY(ds->rechargeBalance(userId, 100.0));
     const QueryResult userRows = ds->query(QStringLiteral("users"), {},
                                            QStringLiteral("id = ?"), QVariantList{userId});
     QVERIFY(!userRows.isEmpty());
@@ -327,6 +327,21 @@ void GuiFlowTest::chargeFlow()
         QStringLiteral("id = ?"), QVariantList{pileId});
     QCOMPARE(pileBusy.first().value(QStringLiteral("status")).toString(),
              QStringLiteral("使用中"));
+    QVERIFY(!ds->removeChargingPile(pileId));
+
+    // 第二个用户同时抢同一个桩必须失败，且不能留下半成品订单。
+    RemoteDataSource otherClient;
+    QVERIFY(otherClient.connectToServer(QStringLiteral("127.0.0.1"), server.port()));
+    const DataRow otherUser = otherClient.loginUser(QStringLiteral("13900000009"));
+    const qlonglong otherUserId = otherUser.value(QStringLiteral("id")).toLongLong();
+    QVERIFY(otherUserId > 0);
+    // 请求里的 userId 即使伪造也会被服务器忽略，以当前会话身份为准。
+    QCOMPARE(otherClient.startCharge(userId, pileId), -1LL);
+    const QueryResult otherActive = otherClient.query(
+        QStringLiteral("orders"), {},
+        QStringLiteral("user_id = ? AND status = '充电中'"),
+        QVariantList{otherUserId});
+    QVERIFY(otherActive.isEmpty());
 
     // 等 ~2.2 秒(模拟 ~2 分钟),电量应从 0 涨起来
     QTest::qWait(2200);
@@ -350,11 +365,25 @@ void GuiFlowTest::chargeFlow()
              QStringLiteral("空闲"));
     QCOMPARE(pileAfter.first().value(QStringLiteral("charge_count")).toLongLong(), 1LL);
     QVERIFY(pileAfter.first().value(QStringLiteral("charge_duration_min")).toLongLong() >= 1);
+    QVERIFY(!ds->removeChargingPile(pileId)); // 历史订单仍引用该桩
 
     // 用户余额被扣(100 起步,结算后应小于 100)
     const QueryResult userAfter = ds->query(QStringLiteral("users"), {},
         QStringLiteral("id = ?"), QVariantList{userId});
     QVERIFY(userAfter.first().value(QStringLiteral("balance")).toDouble() < 100.0);
+
+    // 同一订单重复结算必须失败，余额和桩累计值都不能再变化。
+    const double balanceAfter = userAfter.first().value(QStringLiteral("balance")).toDouble();
+    const qlonglong countAfter =
+        pileAfter.first().value(QStringLiteral("charge_count")).toLongLong();
+    QVERIFY(!ds->settleCharge(order.value(QStringLiteral("id")).toLongLong()));
+    const QueryResult userAfterRetry = ds->query(QStringLiteral("users"), {},
+        QStringLiteral("id = ?"), QVariantList{userId});
+    const QueryResult pileAfterRetry = ds->query(QStringLiteral("charging_piles"), {},
+        QStringLiteral("id = ?"), QVariantList{pileId});
+    QCOMPARE(userAfterRetry.first().value(QStringLiteral("balance")).toDouble(), balanceAfter);
+    QCOMPARE(pileAfterRetry.first().value(QStringLiteral("charge_count")).toLongLong(),
+             countAfter);
 }
 
 // ---- ⑥ 未完成订单拦截:有"充电中"订单时,进充电页被拦下并跳到订单页 ----
@@ -370,11 +399,9 @@ void GuiFlowTest::unfinishedOrderCheck()
     DataSource *ds = AppContext::instance()->dataSource();
     QVERIFY(ds);
 
-    // 造用户 + 一笔直接插入的"充电中"订单
-    QHash<QString, QVariant> u;
-    u.insert(QStringLiteral("phone"), QStringLiteral("13900000002"));
-    u.insert(QStringLiteral("nickname"), QStringLiteral("待结算用户"));
-    const qlonglong userId = ds->insertRow(QStringLiteral("users"), u);
+    // 通过用户会话和正式开始充电接口制造一笔未完成订单。
+    const DataRow loggedUser = ds->loginUser(QStringLiteral("13900000002"));
+    const qlonglong userId = loggedUser.value(QStringLiteral("id")).toLongLong();
     QVERIFY(userId > 0);
     const QueryResult userRows = ds->query(QStringLiteral("users"), {},
                                            QStringLiteral("id = ?"), QVariantList{userId});
@@ -383,12 +410,8 @@ void GuiFlowTest::unfinishedOrderCheck()
 
     const QueryResult pileRows = ds->query(QStringLiteral("charging_piles"));
     QVERIFY(!pileRows.isEmpty());
-    QHash<QString, QVariant> order;
-    order.insert(QStringLiteral("user_id"), userId);
-    order.insert(QStringLiteral("pile_id"), pileRows.first().value(QStringLiteral("id")).toLongLong());
-    order.insert(QStringLiteral("start_time"),
-                 QDateTime::currentDateTime().addSecs(-120).toString(Qt::ISODate));
-    const qlonglong orderId = ds->insertRow(QStringLiteral("orders"), order);
+    const qlonglong orderId = ds->startCharge(
+        userId, pileRows.first().value(QStringLiteral("id")).toLongLong());
     QVERIFY(orderId > 0);
 
     UserMainWindow mainWin;
@@ -412,12 +435,82 @@ void GuiFlowTest::unfinishedOrderCheck()
     orderList->setCurrentRow(0);
     QVERIFY(settleBtn->isEnabled());
 
-    // 结算 → 完成
+    // 余额为 0 时结算失败，订单和电桩状态保持不变。
     QTest::mouseClick(settleBtn, Qt::LeftButton);
     QTest::qWait(50);
-    const QueryResult done = ds->query(QStringLiteral("orders"), {},
+    QueryResult done = ds->query(QStringLiteral("orders"), {},
         QStringLiteral("id = ?"), QVariantList{orderId});
+    QCOMPARE(done.first().value(QStringLiteral("status")).toString(), QStringLiteral("充电中"));
+
+    // 用户充值后即可重新结算。
+    QVERIFY(ds->rechargeBalance(userId, 100.0));
+    orderList->setCurrentRow(0);
+    QTest::mouseClick(settleBtn, Qt::LeftButton);
+    QTest::qWait(50);
+    done = ds->query(QStringLiteral("orders"), {},
+                     QStringLiteral("id = ?"), QVariantList{orderId});
     QCOMPARE(done.first().value(QStringLiteral("status")).toString(), QStringLiteral("已完成"));
+}
+
+// ---- ⑦ 服务异常退出恢复:进行中订单保留，重启后仍按 1 秒 = 1 分钟结算 ----
+void GuiFlowTest::crashRecovery()
+{
+    const QString dbPath = QStringLiteral("gui_test_recovery.db");
+    QFile::remove(dbPath);
+    const QString phone = QStringLiteral("13900000003");
+    qlonglong orderId = 0;
+    qlonglong pileId = 0;
+    double power = 0.0;
+
+    {
+        Server server;
+        QVERIFY(server.start(dbPath, QStringLiteral("127.0.0.1"), 0));
+        AppContext::instance()->setServer(QStringLiteral("127.0.0.1"), server.port());
+        QVERIFY(AppContext::instance()->connectIfNeeded());
+        DataSource *ds = AppContext::instance()->dataSource();
+        const DataRow user = ds->loginUser(phone);
+        QVERIFY(!user.isEmpty());
+        QVERIFY(ds->rechargeBalance(user.value(QStringLiteral("id")).toLongLong(), 100.0));
+        const QueryResult piles = ds->query(QStringLiteral("charging_piles"));
+        QVERIFY(!piles.isEmpty());
+        pileId = piles.first().value(QStringLiteral("id")).toLongLong();
+        power = piles.first().value(QStringLiteral("power_kw")).toDouble();
+        orderId = ds->startCharge(user.value(QStringLiteral("id")).toLongLong(), pileId);
+        QVERIFY(orderId > 0);
+        QTest::qWait(2200);
+        // server 离开作用域，模拟充电过程中服务进程异常退出。
+    }
+
+    {
+        Server restarted;
+        QVERIFY(restarted.start(dbPath, QStringLiteral("127.0.0.1"), 0));
+        AppContext::instance()->setServer(QStringLiteral("127.0.0.1"), restarted.port());
+        QVERIFY(AppContext::instance()->connectIfNeeded());
+        DataSource *ds = AppContext::instance()->dataSource();
+        const DataRow user = ds->loginUser(phone);
+        QVERIFY(!user.isEmpty());
+
+        const QueryResult active = ds->query(
+            QStringLiteral("orders"), {},
+            QStringLiteral("user_id = ? AND status = '充电中'"),
+            {user.value(QStringLiteral("id"))});
+        QCOMPARE(active.size(), 1);
+        QCOMPARE(active.first().value(QStringLiteral("id")).toLongLong(), orderId);
+        const QueryResult pile = ds->query(QStringLiteral("charging_piles"), {},
+                                           QStringLiteral("id = ?"), {pileId});
+        QCOMPARE(pile.first().value(QStringLiteral("status")).toString(),
+                 QStringLiteral("使用中"));
+
+        QVERIFY(ds->settleCharge(orderId));
+        const QueryResult done = ds->query(QStringLiteral("orders"), {},
+                                           QStringLiteral("id = ?"), {orderId});
+        QCOMPARE(done.first().value(QStringLiteral("status")).toString(),
+                 QStringLiteral("已完成"));
+        // 等待约 2 秒，应至少按 2 个模拟分钟结算，且由服务器时间决定。
+        const double energy = done.first().value(QStringLiteral("energy_kwh")).toDouble();
+        QVERIFY(energy >= power * 2.0 / 60.0 - 0.01);
+        QVERIFY(energy <= power * 4.0 / 60.0 + 0.01);
+    }
 }
 
 QTEST_MAIN(GuiFlowTest)

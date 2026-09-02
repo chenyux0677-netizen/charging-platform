@@ -289,7 +289,11 @@ void PileManagePage::onRemove()
         != QMessageBox::Yes)
         return;
 
-    if (DataSource *ds = AppContext::instance()->dataSource())
-        ds->removeRows(QStringLiteral("charging_piles"),
-                       QStringLiteral("id = ?"), QVariantList{id});
+    if (DataSource *ds = AppContext::instance()->dataSource()) {
+        if (!ds->removeChargingPile(id)) {
+            QMessageBox::warning(
+                this, QStringLiteral("无法删除"),
+                QStringLiteral("该充电桩正在使用或已有订单记录，不能删除。"));
+        }
+    }
 }

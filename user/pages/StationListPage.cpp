@@ -92,7 +92,14 @@ void StationListPage::refresh()
         return;
     }
 
-    struct Row { double dist; DataRow station; int total; int free; };
+    struct Row {
+        double dist;
+        DataRow station;
+        int total;
+        int free;
+        double minPrice;
+        double maxPrice;
+    };
     QVector<Row> rows;
     rows.reserve(stations.size());
 
@@ -103,9 +110,21 @@ void StationListPage::refresh()
                                             QVariantList{sid});
         int total = piles.size();
         int free = 0;
-        for (const DataRow &p : piles)
+        double minPrice = 0.0;
+        double maxPrice = 0.0;
+        bool firstPrice = true;
+        for (const DataRow &p : piles) {
             if (p.value(QStringLiteral("status")).toString() == QStringLiteral("空闲"))
                 ++free;
+            const double price = p.value(QStringLiteral("price_per_kwh")).toDouble();
+            if (firstPrice) {
+                minPrice = maxPrice = price;
+                firstPrice = false;
+            } else {
+                minPrice = qMin(minPrice, price);
+                maxPrice = qMax(maxPrice, price);
+            }
+        }
 
         Row r;
         r.dist = distanceKm(myLat, myLng,
@@ -114,6 +133,8 @@ void StationListPage::refresh()
         r.station = st;
         r.total = total;
         r.free = free;
+        r.minPrice = minPrice;
+        r.maxPrice = maxPrice;
         rows << r;
     }
 
@@ -122,9 +143,17 @@ void StationListPage::refresh()
               [](const Row &a, const Row &b) { return a.dist < b.dist; });
 
     for (const Row &r : rows) {
-        const QString text = QStringLiteral("%1\n价格:%2 元/度  电桩:%3 总/%4 空闲  距离:%5 km")
+        QString priceText = QStringLiteral("暂无报价");
+        if (r.total > 0) {
+            priceText = qFuzzyCompare(r.minPrice + 1.0, r.maxPrice + 1.0)
+                ? QStringLiteral("%1 元/度").arg(r.minPrice, 0, 'f', 2)
+                : QStringLiteral("%1~%2 元/度")
+                      .arg(r.minPrice, 0, 'f', 2)
+                      .arg(r.maxPrice, 0, 'f', 2);
+        }
+        const QString text = QStringLiteral("%1\n价格:%2  电桩:%3 总/%4 空闲  距离:%5 km")
             .arg(r.station.value(QStringLiteral("name")).toString())
-            .arg(r.station.value(QStringLiteral("price_per_kwh")).toDouble(), 0, 'f', 2)
+            .arg(priceText)
             .arg(r.total)
             .arg(r.free)
             .arg(r.dist, 0, 'f', 1);

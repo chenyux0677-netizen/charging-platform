@@ -11,8 +11,9 @@ set(CMAKE_AUTORCC ON)
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
-find_package(QT NAMES Qt6 Qt5 COMPONENTS Widgets Sql Network Test REQUIRED)
-find_package(Qt${QT_VERSION_MAJOR} COMPONENTS Widgets Sql Network Test REQUIRED)
+# Charts(销售统计图表)需要系统安装 libqt6charts6-dev,见 README「环境准备」
+find_package(QT NAMES Qt6 Qt5 COMPONENTS Widgets Sql Network Test Charts REQUIRED)
+find_package(Qt${QT_VERSION_MAJOR} COMPONENTS Widgets Sql Network Test Charts REQUIRED)
 
 set(PROJECT_SOURCES
     main.cpp
@@ -24,8 +25,6 @@ set(PROJECT_SOURCES
     core/LocalDataSource.cpp
     core/RemoteDataSource.h
     core/RemoteDataSource.cpp
-    core/PasswordHasher.h
-    core/PasswordHasher.cpp
     core/TableDef.h
     core/TableDef.cpp
     core/GenericTableModel.h
@@ -100,6 +99,7 @@ target_link_libraries(charging-platform PRIVATE
     Qt${QT_VERSION_MAJOR}::Widgets
     Qt${QT_VERSION_MAJOR}::Sql
     Qt${QT_VERSION_MAJOR}::Network
+    Qt${QT_VERSION_MAJOR}::Charts
 )
 
 # ---- 通信自检工具(独立小程序,不属于主程序) ----
@@ -113,8 +113,6 @@ qt_add_executable(net_selftest
     core/LocalDataSource.cpp
     core/RemoteDataSource.h
     core/RemoteDataSource.cpp
-    core/PasswordHasher.h
-    core/PasswordHasher.cpp
     common/Protocol.h
     common/Protocol.cpp
     server/Server.h
@@ -134,12 +132,9 @@ qt_add_executable(db_selftest
     core/TableDef.cpp
     core/LocalDataSource.h
     core/LocalDataSource.cpp
-    core/PasswordHasher.h
-    core/PasswordHasher.cpp
 )
 target_link_libraries(db_selftest PRIVATE
     Qt${QT_VERSION_MAJOR}::Sql
-    Qt${QT_VERSION_MAJOR}::Network
 )
 
 # ---- 界面自检(脚本化点击登录链路,独立小程序,不属于主程序) ----
@@ -153,8 +148,6 @@ qt_add_executable(gui_flow_test
     core/LocalDataSource.cpp
     core/RemoteDataSource.h
     core/RemoteDataSource.cpp
-    core/PasswordHasher.h
-    core/PasswordHasher.cpp
     common/Protocol.h
     common/Protocol.cpp
     common/AppContext.h
@@ -198,6 +191,7 @@ target_link_libraries(gui_flow_test PRIVATE
     Qt${QT_VERSION_MAJOR}::Widgets
     Qt${QT_VERSION_MAJOR}::Sql
     Qt${QT_VERSION_MAJOR}::Network
+    Qt${QT_VERSION_MAJOR}::Charts
     Qt${QT_VERSION_MAJOR}::Test
 )
 

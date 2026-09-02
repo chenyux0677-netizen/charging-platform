@@ -2,7 +2,6 @@
 #define TABLEDEF_H
 
 #include <QString>
-#include <QStringList>
 #include <QVector>
 
 // 一列的字段定义
@@ -28,10 +27,12 @@ struct ColumnDef
 // 一张表的定义
 struct TableDef
 {
-    QString tableName;          // 表名
-    QVector<ColumnDef> columns; // 字段清单
-    QStringList constraints;    // 外键、联合唯一、CHECK 等表级约束
-    QStringList indexes;        // 建表完成后执行的 CREATE INDEX 语句
+    QString tableName;              // 表名
+    QVector<ColumnDef> columns;     // 字段清单
+    // 表级约束(CHECK / FOREIGN KEY / UNIQUE 等),创建时拼在列清单后面;仅对新建库生效
+    QVector<QString> constraints;
+    // 建表完成后要执行的 CREATE INDEX 语句(如订单的部分唯一索引);启动时逐条执行
+    QVector<QString> indexes;
 
     // 生成 CREATE TABLE IF NOT EXISTS 语句
     QString createTableSql() const;

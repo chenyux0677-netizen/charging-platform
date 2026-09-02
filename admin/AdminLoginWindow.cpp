@@ -59,7 +59,13 @@ void AdminLoginWindow::onLoginClicked()
         return;
     }
 
-    if (!ctx->dataSource()->loginAdmin(username, password)) {
+    const QueryResult rows = ctx->dataSource()->query(
+        QStringLiteral("admins"),
+        {},
+        QStringLiteral("username = ? AND password = ?"),
+        QVariantList{username, password});
+
+    if (rows.isEmpty()) {
         QMessageBox::warning(this, QStringLiteral("登录失败"),
                              QStringLiteral("账号或密码错误。"));
         return;

@@ -44,24 +44,23 @@ public:
                            const QString &where,
                            const QVariantList &bindValues = {}) = 0;
 
-    // 登录必须交给数据源/服务器完成，界面不能直接查询账号表。
-    virtual bool loginAdmin(const QString &username, const QString &password) = 0;
-    // 手机号不存在时原子注册并登录；失败或账号冻结返回空行。
-    virtual DataRow loginUser(const QString &phone) = 0;
+    // ===== 业务级接口(在服务器端以单事务执行,保证并发与数据一致) =====
 
-    // 余额只能通过服务端增量充值，不能由客户端直接覆盖。
-    virtual bool rechargeBalance(qlonglong userId, double amount) = 0;
-
-    // 核心充电业务必须由服务器原子执行，不能由界面拼接多次 CRUD。
-    // startCharge 成功返回新订单 id，失败（用户已有订单/桩非空闲等）返回 -1。
+    // 用户开始充电:占用电桩并创建"充电中"订单。
+    // 成功返回订单 id;电桩被占用 / 用户已有进行中订单 / 用户异常等失败返回 -1。
     virtual qlonglong startCharge(qlonglong userId, qlonglong pileId) = 0;
 
-    // 原子完成订单、释放电桩、累计统计并扣减余额。
-    // 服务端按订单开始时间计算模拟时长（现实 1 秒 = 模拟 1 分钟）。
+    // 结算订单:时长与费用由服务器计算,幂等(同一订单只会成功结算一次)。
+    // 余额不足则整单回滚并返回 false(订单保持"充电中",充值后可重试)。
     virtual bool settleCharge(qlonglong orderId) = 0;
 
-    // 管理端安全删除：有关联订单或正在使用时拒绝，避免产生孤儿数据。
+    // 充值:只在用户状态正常时把余额加上 amount。
+    virtual bool rechargeBalance(qlonglong userId, double amount) = 0;
+
+    // 删除电桩:仅当不在使用中且没有任何订单记录时成功(有历史订单则拒绝)。
     virtual bool removeChargingPile(qlonglong pileId) = 0;
+
+    // 删除充电站:任一电桩使用中或有过订单记录则拒绝;否则在事务中先删桩再删站。
     virtual bool removeChargingStation(qlonglong stationId) = 0;
 
 signals:

@@ -126,12 +126,13 @@ void ChargingPage::startCharging()
 
     const qlonglong userId =
         AppContext::instance()->currentUser().value(QStringLiteral("id")).toLongLong();
+    // 占桩 + 建单在服务器端同事务内完成,并发抢桩由服务端原子操作兜底
     const qlonglong orderId = ds->startCharge(
         userId, m_pile.value(QStringLiteral("id")).toLongLong());
     if (orderId <= 0) {
-        QMessageBox::warning(this, QStringLiteral("提示"),
-                             QStringLiteral("开始充电失败，该充电桩可能已被占用，"
-                                            "或当前账号已有进行中的订单。"));
+        QMessageBox::warning(
+            this, QStringLiteral("提示"),
+            QStringLiteral("开始充电失败:该充电桩可能已被占用,或当前账号已有进行中的订单。"));
         return;
     }
 
@@ -173,6 +174,6 @@ void ChargingPage::stopCharging()
                                  QStringLiteral("充电已结束,结算明细请在订单页查看。"));
     else
         QMessageBox::warning(this, QStringLiteral("结算失败"),
-                             QStringLiteral("结算失败，可能余额不足；请充值后到订单页处理。"));
+                             QStringLiteral("结算失败,可能余额不足;请充值后到订单页处理。"));
     emit backToStations();
 }

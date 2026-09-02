@@ -62,7 +62,32 @@ bool UserLoginWindow::tryConnect()
 
 DataRow UserLoginWindow::findOrCreateUser(const QString &phone)
 {
-    return AppContext::instance()->dataSource()->loginUser(phone);
+    DataSource *ds = AppContext::instance()->dataSource();
+
+    // 已注册 → 直接返回
+    const QueryResult existing = ds->query(QStringLiteral("users"),
+                                           {},
+                                           QStringLiteral("phone = ?"),
+                                           QVariantList{phone});
+    if (!existing.isEmpty())
+        return existing.first();
+
+    // 未注册 → 自动注册:昵称"用户"+手机号后四位
+    QHash<QString, QVariant> values;
+    values.insert(QStringLiteral("phone"), phone);
+    values.insert(QStringLiteral("nickname"),
+                  QStringLiteral("用户") + phone.right(4));
+    const qlonglong id = ds->insertRow(QStringLiteral("users"), values);
+    if (id <= 0) {
+        qWarning() << "[UserLogin] 自动注册失败 phone =" << phone;
+        return DataRow();
+    }
+
+    // 回查整行(拿到 balance / status / created_at 等默认值)
+    return ds->query(QStringLiteral("users"),
+                     {},
+                     QStringLiteral("id = ?"),
+                     QVariantList{id}).value(0);
 }
 
 void UserLoginWindow::onLoginClicked()
@@ -82,5 +107,11 @@ void UserLoginWindow::onLoginClicked()
                              QStringLiteral("注册或登录失败,请稍后重试。"));
         return;
     }
+    if (user.value(QStringLiteral("status")).toString() == QStringLiteral("冻结")) {
+        QMessageBox::warning(this, QStringLiteral("账号已冻结"),
+                             QStringLiteral("该账号已被管理员冻结,无法登录。"));
+        return;
+    }
+
     emit loginSucceeded(user);
 }

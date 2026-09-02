@@ -1,13 +1,12 @@
 #include "LocalDataSource.h"
-#include "PasswordHasher.h"
 #include "TableDef.h"
 
 #include <QDateTime>
 #include <QDebug>
+#include <QSet>
 #include <QSqlError>
 #include <QSqlQuery>
 #include <QSqlRecord>
-#include <QRegularExpression>
 
 namespace {
 // 本机唯一的命名连接,避免重复注册报警
@@ -34,62 +33,23 @@ bool LocalDataSource::open(const QString &dbPath)
         qWarning() << "[LocalDataSource] 打开数据库失败:" << m_db.lastError().text();
         return false;
     }
-    QSqlQuery foreignKeys(m_db);
-    if (!foreignKeys.exec(QStringLiteral("PRAGMA foreign_keys = ON"))) {
-        qWarning() << "[LocalDataSource] 启用外键失败:"
-                   << foreignKeys.lastError().text();
-        return false;
+    // 外键约束(桩→站、订单→桩/用户)在本连接上生效;需在无事务时启用
+    {
+        QSqlQuery foreignKeys(m_db);
+        if (!foreignKeys.exec(QStringLiteral("PRAGMA foreign_keys = ON"))) {
+            qWarning() << "[LocalDataSource] 启用外键失败:"
+                       << foreignKeys.lastError().text();
+            return false;
+        }
     }
     if (!createTablesIfNeeded()) {
         return false;
     }
-    if (!recoverChargingState())
+    if (!recoverChargingState()) {
         return false;
+    }
     m_open = true;
     qInfo() << "[LocalDataSource] 数据库已就绪:" << dbPath;
-    return true;
-}
-
-bool LocalDataSource::recoverChargingState()
-{
-    if (!m_db.transaction())
-        return false;
-
-    // 进行中订单是恢复依据：它对应的桩必须保持“使用中”。
-    QSqlQuery restoreBusy(m_db);
-    if (!restoreBusy.exec(QStringLiteral(
-            "UPDATE charging_piles SET status = '使用中' "
-            "WHERE EXISTS (SELECT 1 FROM orders "
-            "WHERE orders.pile_id = charging_piles.id AND orders.status = '充电中') "
-            "AND status <> '使用中'"))) {
-        qWarning() << "[LocalDataSource] 恢复占用电桩失败:"
-                   << restoreBusy.lastError().text();
-        m_db.rollback();
-        return false;
-    }
-
-    // 没有进行中订单却仍标记“使用中”，说明上次异常退出前状态已不一致。
-    QSqlQuery releaseStale(m_db);
-    if (!releaseStale.exec(QStringLiteral(
-            "UPDATE charging_piles SET status = '空闲' "
-            "WHERE status = '使用中' AND NOT EXISTS "
-            "(SELECT 1 FROM orders WHERE orders.pile_id = charging_piles.id "
-            "AND orders.status = '充电中')"))) {
-        qWarning() << "[LocalDataSource] 释放异常占用电桩失败:"
-                   << releaseStale.lastError().text();
-        m_db.rollback();
-        return false;
-    }
-
-    if (!m_db.commit()) {
-        m_db.rollback();
-        return false;
-    }
-    const int restored = restoreBusy.numRowsAffected();
-    const int released = releaseStale.numRowsAffected();
-    if (restored > 0 || released > 0)
-        qInfo() << "[LocalDataSource] 启动恢复完成:恢复占用" << restored
-                << "个，释放异常占用" << released << "个";
     return true;
 }
 
@@ -105,8 +65,7 @@ QString LocalDataSource::dbPath() const
 
 bool LocalDataSource::createTablesIfNeeded()
 {
-    const QVector<TableDef> defs = allTableDefs();
-    for (const TableDef &def : defs) {
+    for (const TableDef &def : allTableDefs()) {
         QSqlQuery q(m_db);
         if (!q.exec(def.createTableSql())) {
             qWarning() << "[LocalDataSource] 建表失败:" << def.tableName
@@ -115,7 +74,13 @@ bool LocalDataSource::createTablesIfNeeded()
         }
         qInfo() << "[LocalDataSource] 表已就绪:" << def.tableName;
     }
-    for (const TableDef &def : defs) {
+    // CREATE 只保证表存在;旧版本生成的库会缺新版新增的列,这里自动补齐(见 migrateMissingColumns)
+    if (!migrateMissingColumns())
+        return false;
+
+    // 建表/补列之后创建表定义里声明的索引(orders 的部分唯一索引)。
+    // IF NOT EXISTS 保证重复启动幂等;新库此刻表为空,必然成功。
+    for (const TableDef &def : allTableDefs()) {
         for (const QString &sql : def.indexes) {
             QSqlQuery q(m_db);
             if (!q.exec(sql)) {
@@ -123,6 +88,63 @@ bool LocalDataSource::createTablesIfNeeded()
                            << "| SQL:" << sql;
                 return false;
             }
+        }
+    }
+    return true;
+}
+
+bool LocalDataSource::migrateMissingColumns()
+{
+    for (const TableDef &def : allTableDefs()) {
+        // 读出表现有的列名集合
+        QSet<QString> existing;
+        {
+            QSqlQuery qCol(m_db);
+            if (!qCol.exec(QStringLiteral("PRAGMA table_info(%1)").arg(def.tableName))) {
+                qWarning() << "[LocalDataSource] 读取列信息失败:" << def.tableName
+                           << "->" << qCol.lastError().text();
+                return false;
+            }
+            // PRAGMA table_info 每行: [cid, name, type, notnull, dflt_value, pk]
+            while (qCol.next())
+                existing.insert(qCol.value(1).toString());
+        }
+
+        for (const ColumnDef &col : def.columns) {
+            if (existing.contains(col.name))
+                continue;
+
+            // SQLite 的 ALTER TABLE ADD COLUMN 不能带主键/自增/唯一约束
+            if (col.primaryKey || col.autoIncrement || col.unique) {
+                qWarning() << "[LocalDataSource] 列" << def.tableName << "." << col.name
+                           << "带主键/自增/唯一约束,无法自动补充,需删旧库重建(当前代码不会新增此类列)";
+                continue;
+            }
+
+            // ADD COLUMN 的 DEFAULT 必须是字面量,带括号的表达式(如 datetime(...))不被允许
+            const bool constantDefault = !col.defaultValue.isEmpty()
+                && !col.defaultValue.startsWith(QLatin1Char('('));
+
+            QString ddl = QStringLiteral("ALTER TABLE %1 ADD COLUMN %2 %3")
+                              .arg(def.tableName, col.name, col.sqlType);
+            if (col.notNull && constantDefault) {
+                ddl += QStringLiteral(" NOT NULL DEFAULT %1").arg(col.defaultValue);
+            } else if (!col.notNull && constantDefault) {
+                ddl += QStringLiteral(" DEFAULT %1").arg(col.defaultValue);
+            } else if (col.notNull) {
+                // 要求 NOT NULL 但拿不到字面量默认值:SQLite 不允许,降级为可空列
+                // (旧行与依赖数据库默认值的新行此列可能为 NULL,但不影响读写正常)
+                qWarning() << "[LocalDataSource] 列" << def.tableName << "." << col.name
+                           << "要求 NOT NULL 但默认值非常量,已按可空列补充";
+            }
+
+            QSqlQuery qAdd(m_db);
+            if (!qAdd.exec(ddl)) {
+                qWarning() << "[LocalDataSource] 自动补列失败:" << def.tableName << "." << col.name
+                           << "->" << qAdd.lastError().text() << "| SQL:" << ddl;
+                return false;
+            }
+            qInfo() << "[LocalDataSource] 旧库自动补列:" << def.tableName << "+" << col.name;
         }
     }
     return true;
@@ -253,88 +275,48 @@ int LocalDataSource::removeRows(const QString &table,
     return affected;
 }
 
-bool LocalDataSource::loginAdmin(const QString &username, const QString &password)
+// ---- 业务级接口:多表写入都在单事务里完成,失败整体回滚 ----
+
+bool LocalDataSource::recoverChargingState()
 {
-    if (!m_db.isOpen() || username.isEmpty() || password.isEmpty())
+    if (!m_db.transaction())
         return false;
-    QSqlQuery q(m_db);
-    q.prepare(QStringLiteral(
-        "SELECT password_salt, password_hash FROM admins WHERE username = ? LIMIT 1"));
-    q.addBindValue(username);
-    if (!q.exec() || !q.next())
+
+    // 进行中订单是恢复依据:它对应的桩必须保持"使用中"。
+    QSqlQuery restoreBusy(m_db);
+    if (!restoreBusy.exec(QStringLiteral(
+            "UPDATE charging_piles SET status = '使用中' "
+            "WHERE EXISTS (SELECT 1 FROM orders "
+            "WHERE orders.pile_id = charging_piles.id AND orders.status = '充电中') "
+            "AND status <> '使用中'"))) {
+        qWarning() << "[LocalDataSource] 恢复占用电桩失败:"
+                   << restoreBusy.lastError().text();
+        m_db.rollback();
         return false;
-    return PasswordHasher::verify(password, q.value(0).toString(), q.value(1).toString());
-}
+    }
 
-DataRow LocalDataSource::loginUser(const QString &phone)
-{
-    DataRow result;
-    static const QRegularExpression phonePattern(QStringLiteral("^\\d{11}$"));
-    if (!m_db.isOpen() || !phonePattern.match(phone).hasMatch() || !m_db.transaction())
-        return result;
-    bool created = false;
-
-    QSqlQuery find(m_db);
-    find.prepare(QStringLiteral(
-        "SELECT id, phone, nickname, avatar, balance, status, created_at "
-        "FROM users WHERE phone = ?"));
-    find.addBindValue(phone);
-    if (!find.exec()) {
+    // 没有进行中订单却仍标记"使用中",说明上次异常退出前状态已不一致。
+    QSqlQuery releaseStale(m_db);
+    if (!releaseStale.exec(QStringLiteral(
+            "UPDATE charging_piles SET status = '空闲' "
+            "WHERE status = '使用中' AND NOT EXISTS "
+            "(SELECT 1 FROM orders WHERE orders.pile_id = charging_piles.id "
+            "AND orders.status = '充电中')"))) {
+        qWarning() << "[LocalDataSource] 释放异常占用电桩失败:"
+                   << releaseStale.lastError().text();
         m_db.rollback();
-        return result;
+        return false;
     }
 
-    if (!find.next()) {
-        QSqlQuery create(m_db);
-        create.prepare(QStringLiteral(
-            "INSERT INTO users (phone, nickname) VALUES (?, ?)"));
-        create.addBindValue(phone);
-        create.addBindValue(QStringLiteral("用户") + phone.right(4));
-        if (!create.exec()) {
-            m_db.rollback();
-            return result;
-        }
-        created = true;
-        find.finish();
-        find.prepare(QStringLiteral(
-            "SELECT id, phone, nickname, avatar, balance, status, created_at "
-            "FROM users WHERE phone = ?"));
-        find.addBindValue(phone);
-        if (!find.exec() || !find.next()) {
-            m_db.rollback();
-            return result;
-        }
-    }
-
-    if (find.value(QStringLiteral("status")).toString() == QStringLiteral("冻结")) {
-        m_db.rollback();
-        return result;
-    }
-    const QSqlRecord rec = find.record();
-    for (int i = 0; i < rec.count(); ++i)
-        result.insert(rec.fieldName(i), find.value(i));
     if (!m_db.commit()) {
         m_db.rollback();
-        result.clear();
-    } else if (created) {
-        emit dataChanged(QStringLiteral("users"));
+        return false;
     }
-    return result;
-}
-
-bool LocalDataSource::rechargeBalance(qlonglong userId, double amount)
-{
-    if (!m_db.isOpen() || userId <= 0 || !qIsFinite(amount)
-        || amount < 0.01 || amount > 1000000.0)
-        return false;
-    QSqlQuery q(m_db);
-    q.prepare(QStringLiteral(
-        "UPDATE users SET balance = balance + ? WHERE id = ? AND status = '正常'"));
-    q.addBindValue(amount);
-    q.addBindValue(userId);
-    if (!q.exec() || q.numRowsAffected() != 1)
-        return false;
-    emit dataChanged(QStringLiteral("users"));
+    const int restored = restoreBusy.numRowsAffected();
+    const int released = releaseStale.numRowsAffected();
+    if (restored > 0 || released > 0)
+        qInfo() << "[LocalDataSource] 启动恢复完成:恢复占用" << restored
+                << "个,释放异常占用" << released << "个";
     return true;
 }
 
@@ -367,7 +349,7 @@ qlonglong LocalDataSource::startCharge(qlonglong userId, qlonglong pileId)
         return -1;
     }
 
-    // 条件更新就是“抢桩”：只有仍为空闲的桩能被一个请求成功占用。
+    // 条件更新就是"抢桩":只有仍为空闲的桩能被一个请求成功占用。
     QSqlQuery claim(m_db);
     claim.prepare(QStringLiteral(
         "UPDATE charging_piles SET status = '使用中' WHERE id = ? AND status = '空闲'"));
@@ -438,6 +420,7 @@ bool LocalDataSource::settleCharge(qlonglong orderId)
         m_db.rollback();
         return false;
     }
+    // 演示口径 1 秒 = 1 分钟:时长由服务器按"开始时间 → 当前时间"计算
     const qlonglong minutes = qMax<qlonglong>(
         1, start.secsTo(QDateTime::currentDateTime()));
     const double energy = pile.value(0).toDouble() * minutes / 60.0;
@@ -470,6 +453,7 @@ bool LocalDataSource::settleCharge(qlonglong orderId)
         return false;
     }
 
+    // 余额守卫:不足则整单回滚(订单保持"充电中",充值后可重试)
     QSqlQuery debit(m_db);
     debit.prepare(QStringLiteral(
         "UPDATE users SET balance = balance - ? WHERE id = ? AND balance >= ?"));
@@ -497,11 +481,29 @@ bool LocalDataSource::settleCharge(qlonglong orderId)
     return true;
 }
 
+bool LocalDataSource::rechargeBalance(qlonglong userId, double amount)
+{
+    if (!m_db.isOpen() || userId <= 0 || !qIsFinite(amount)
+        || amount < 0.01 || amount > 1000000.0)
+        return false;
+    // 只在用户状态正常时加钱,冻结/不存在的用户不响应
+    QSqlQuery q(m_db);
+    q.prepare(QStringLiteral(
+        "UPDATE users SET balance = balance + ? WHERE id = ? AND status = '正常'"));
+    q.addBindValue(amount);
+    q.addBindValue(userId);
+    if (!q.exec() || q.numRowsAffected() != 1)
+        return false;
+    emit dataChanged(QStringLiteral("users"));
+    return true;
+}
+
 bool LocalDataSource::removeChargingPile(qlonglong pileId)
 {
     if (!m_db.isOpen() || pileId <= 0 || !m_db.transaction())
         return false;
 
+    // 使用中的桩、或任何有过订单记录的桩都不能删(外键亦会拒绝)
     QSqlQuery remove(m_db);
     remove.prepare(QStringLiteral(
         "DELETE FROM charging_piles WHERE id = ? AND status <> '使用中' "
@@ -525,7 +527,7 @@ bool LocalDataSource::removeChargingStation(qlonglong stationId)
     if (!m_db.isOpen() || stationId <= 0 || !m_db.transaction())
         return false;
 
-    // 有使用中电桩或任何历史订单时保留整个电站，避免破坏业务记录。
+    // 有使用中电桩或任何历史订单时保留整个电站,避免破坏业务记录
     QSqlQuery protectedPiles(m_db);
     protectedPiles.prepare(QStringLiteral(
         "SELECT 1 FROM charging_piles p WHERE p.station_id = ? AND "

@@ -10,7 +10,7 @@ class QListWidget;
 
 // 用户端 · 附近充电站列表页。
 // 无真实定位,用"模拟定位"(城市区域下拉)代替 GPS,
-// 按球面距离(haversine)升序展示各充电站下属电桩的价格范围 / 总数 / 空闲数 / 距离。
+// 按球面距离(haversine)升序展示各充电站的价格 / 电桩总数 / 空闲数 / 距离。
 class StationListPage : public QWidget
 {
     Q_OBJECT

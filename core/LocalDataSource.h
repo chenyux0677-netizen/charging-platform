@@ -20,6 +20,11 @@ public:
     bool isOpen() const;
     QString dbPath() const;
 
+    // 启动自愈:以"充电中订单"为准,把有订单的桩强制回"使用中"、
+    // 把没有订单却停在"使用中"的桩(上次异常退出遗留)释放回"空闲"。
+    // 由 open() 在建表后调用;新库无数据时为空操作。
+    bool recoverChargingState();
+
     // ---- DataSource 接口 ----
     QueryResult query(const QString &table,
                       const QStringList &fields = {},
@@ -34,17 +39,20 @@ public:
     int removeRows(const QString &table,
                    const QString &where,
                    const QVariantList &bindValues = {}) override;
-    bool loginAdmin(const QString &username, const QString &password) override;
-    DataRow loginUser(const QString &phone) override;
-    bool rechargeBalance(qlonglong userId, double amount) override;
+
+    // ---- 业务级接口:在单事务内执行,见 DataSource.h 说明 ----
     qlonglong startCharge(qlonglong userId, qlonglong pileId) override;
     bool settleCharge(qlonglong orderId) override;
+    bool rechargeBalance(qlonglong userId, double amount) override;
     bool removeChargingPile(qlonglong pileId) override;
     bool removeChargingStation(qlonglong stationId) override;
 
 private:
     bool createTablesIfNeeded();
-    bool recoverChargingState();
+    // 旧库补列:CREATE TABLE IF NOT EXISTS 只建表不补列,
+    // 旧版本生成的库会缺新版新增的列(曾导致写入静默失败)。
+    // 对照表定义,用 PRAGMA 找出缺失列并 ALTER TABLE ADD COLUMN 自动补齐。
+    bool migrateMissingColumns();
 
     QSqlDatabase m_db;
     QString m_dbPath;

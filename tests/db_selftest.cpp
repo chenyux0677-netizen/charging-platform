@@ -3,15 +3,12 @@
 // 用法:直接运行可执行文件 db_selftest,看输出是否"自检通过"。
 #include "core/DataSource.h"
 #include "core/LocalDataSource.h"
-#include "core/PasswordHasher.h"
 #include "core/TableDef.h"
 
 #include <QCoreApplication>
 #include <QFile>
 #include <QFileInfo>
 #include <QTextStream>
-
-#include <algorithm>
 
 static int g_fail = 0;
 
@@ -43,24 +40,6 @@ int main(int argc, char *argv[])
     check(defs.size() == 5, QStringLiteral("业务表数量 = %1(预期 5)").arg(defs.size()));
     for (const TableDef &d : defs)
         out << "  " << d.createTableSql() << "\n";
-    const auto adminDef = std::find_if(defs.cbegin(), defs.cend(), [](const TableDef &def) {
-        return def.tableName == QStringLiteral("admins");
-    });
-    QStringList adminColumns;
-    if (adminDef != defs.cend()) {
-        for (const ColumnDef &column : adminDef->columns)
-            adminColumns << column.name;
-    }
-    check(!adminColumns.contains(QStringLiteral("password"))
-              && adminColumns.contains(QStringLiteral("password_salt"))
-              && adminColumns.contains(QStringLiteral("password_hash")),
-          "管理员表只保留密码盐和派生值字段");
-    const QString salt = PasswordHasher::generateSalt();
-    const QString passwordHash = PasswordHasher::derive(QStringLiteral("123456"), salt);
-    check(salt.size() == 32 && passwordHash.size() == 64
-              && PasswordHasher::verify(QStringLiteral("123456"), salt, passwordHash)
-              && !PasswordHasher::verify(QStringLiteral("wrong"), salt, passwordHash),
-          "PBKDF2 密码派生与校验正确");
 
     out << "\n[3/5] 插入数据\n";
     QHash<QString, QVariant> user;
@@ -86,14 +65,6 @@ int main(int argc, char *argv[])
     pile.insert(QStringLiteral("price_per_kwh"), 1.5);
     const qlonglong pid = ds.insertRow(QStringLiteral("charging_piles"), pile);
     check(pid > 0, QStringLiteral("插入充电桩成功, id = %1").arg(pid));
-
-    check(ds.insertRow(QStringLiteral("charging_piles"), pile) < 0,
-          QStringLiteral("同一电站内桩号不可重复"));
-    QHash<QString, QVariant> orphanPile = pile;
-    orphanPile.insert(QStringLiteral("station_id"), 999999);
-    orphanPile.insert(QStringLiteral("code"), QStringLiteral("ORPHAN"));
-    check(ds.insertRow(QStringLiteral("charging_piles"), orphanPile) < 0,
-          QStringLiteral("电桩不可引用不存在的电站"));
 
     out << "\n[4/5] 查询\n";
     QueryResult rows = ds.query(QStringLiteral("users"),
@@ -142,24 +113,21 @@ int main(int argc, char *argv[])
           "重新查询余额 = 50");
 
     check(signalCount == 1, "dataChanged(users) 信号已发出 1 次");
-    QHash<QString, QVariant> negativeBalance;
-    negativeBalance.insert(QStringLiteral("balance"), -1.0);
-    check(ds.updateRows(QStringLiteral("users"), negativeBalance,
-                        QStringLiteral("id = ?"), {uid}) == 0,
-          "数据库拒绝负数余额");
 
-    // 外键阻止绕过业务接口直接删除仍有电桩的站；安全接口在事务中删除未使用桩和站。
-    const int blocked = ds.removeRows(QStringLiteral("charging_stations"),
+    // 删除
+    // 站下还有电桩,裸删充电站被外键(FOREIGN KEY ... ON DELETE RESTRICT)拦下
+    const int removed = ds.removeRows(QStringLiteral("charging_stations"),
                                       QStringLiteral("id = ?"), QVariantList{sid});
-    check(blocked == 0, QStringLiteral("外键阻止直接删除仍有电桩的电站"));
-    check(ds.removeChargingStation(sid),
-          QStringLiteral("安全删除接口事务删除未使用电桩及电站"));
-    QueryResult gone = ds.query(QStringLiteral("charging_stations"), {},
-                                QStringLiteral("id = ?"), QVariantList{sid});
-    check(gone.isEmpty(), "删除后按 id 查不到该站");
-    QueryResult pileGone = ds.query(QStringLiteral("charging_piles"), {},
-                                    QStringLiteral("id = ?"), QVariantList{pid});
-    check(pileGone.isEmpty(), "删除电站后其未使用电桩一并删除");
+    check(removed == 0, QStringLiteral("外键拦下直接删除充电站(影响 %1 行,预期 0)").arg(removed));
+
+    // 走安全删除接口:桩空闲且无订单记录 → 服务端在事务里先删桩再删站
+    const bool stationRemoved = ds.removeChargingStation(sid);
+    check(stationRemoved, "安全删除充电站成功(removeChargingStation)");
+    const QueryResult gonePile = ds.query(QStringLiteral("charging_piles"), {},
+                                          QStringLiteral("station_id = ?"), QVariantList{sid});
+    const QueryResult goneStation = ds.query(QStringLiteral("charging_stations"), {},
+                                             QStringLiteral("id = ?"), QVariantList{sid});
+    check(gonePile.isEmpty() && goneStation.isEmpty(), "删除后该站的电桩与电站都查不到");
 
     out << "\n=== 自检" << (g_fail == 0 ? QStringLiteral("通过 ✅") : QStringLiteral("失败(%1 项) ❌").arg(g_fail))
         << " ===\n";

@@ -8,6 +8,7 @@ build-*/
 # ===== Qt Creator 用户文件(含本机路径,不入库) =====
 *.user
 CMakeLists.txt.user*
+.qtcreator/
 
 # ===== Qt 自动生成 =====
 *_autogen/

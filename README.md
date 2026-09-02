@@ -51,6 +51,7 @@ resources/  QSS 样式资源
 
 ### 管理员端
 - 登录(默认账号 `admin` / `123456`,首次启动自动创建)
+- **销售统计**:已完成订单汇总，可按全部 / 今日 / 近 7 天 / 近 30 天筛选，展示各站营收柱状图和订单占比饼图
 - **充电桩状态**:全站电桩实时状态一览(只读),可按状态筛选,支持手动刷新
 - **充电桩管理**:增 / 改 / 删充电桩,可按电站筛选
 - **充电站管理**:增 / 改 / 删充电站(有关联订单或使用中电桩时拒绝删除)
@@ -64,6 +65,7 @@ resources/  QSS 样式资源
 - 服务端权限控制:未登录请求直接拒绝；用户不能读取他人资料/订单、覆盖余额或调用管理接口
 - 管理员密码使用随机盐 + PBKDF2-HMAC-SHA256 派生后保存，账号凭据不通过网络查询接口返回
 - 服务重启自动恢复进行中订单与电桩占用关系；时长始终由服务器按“1 秒 = 1 分钟”计算
+- 用户端与管理员端分别加载共用 QSS 和角色样式，保持统一的界面风格
 
 ### 自检
 - `db_selftest`:数据库建表 / 增删改查
@@ -72,9 +74,7 @@ resources/  QSS 样式资源
 
 ## 未实现 / 待办
 
-- [ ] **销售统计页**(管理员端):tab 已留位,页面为占位
 - [ ] **地图导航**:电站在地图上定位(需 Qt6WebEngine)
-- [ ] **QSS 界面美化**:样式表文件(`resources/*.qss`)目前为空,界面为 Qt 默认外观(需 Qt6Charts 做图表)
 - [ ] **充电过程中的实时进度上报**:目前充电中途**不写数据库**(只在开始/结束时落库),因此管理员端充电期间不显示逐分钟进度——如需实时进度,需增加充电中周期性落库/心跳
 
 ---
@@ -90,10 +90,10 @@ resources/  QSS 样式资源
 | C++ 编译器 | 编译 | `sudo apt install g++` |
 | CMake(≥3.5) | 构建 | `sudo apt install cmake` |
 | Qt 6 开发库 | 界面/数据库/网络/测试 | `sudo apt install qt6-base-dev libqt6sql6-sqlite qt6-base-dev-tools` |
+| Qt Charts | 销售统计图表 | `sudo apt install libqt6charts6-dev` |
 | (可选) Qt Creator | 用 IDE 开发/运行 | `sudo apt install qtcreator` |
 
-> 说明:`qt6-base-dev` 提供 Widgets / Sql / Network / Test 组件;`libqt6sql6-sqlite` 提供 SQLite 数据库驱动(QtSql 必须依赖它,否则程序报 "QSQLITE driver not loaded")。
-> 本仓库当前只用上述组件;`Qt6Charts`(图表)、`Qt6WebEngine`(地图)为后续功能预留,现在不装也能编译运行。
+> 说明:`qt6-base-dev` 提供 Widgets / Sql / Network / Test 组件;`libqt6sql6-sqlite` 提供 SQLite 数据库驱动，`libqt6charts6-dev` 提供销售统计图表。地图功能尚未实现，因此不需要 Qt6WebEngine。
 
 验证安装是否就绪:
 
@@ -234,7 +234,7 @@ cd build
 cd build
 ./db_selftest      # 应输出"自检通过 ✅"
 ./net_selftest     # 应输出"自检通过 ✅"
-./gui_flow_test    # 应输出 8 passed, 0 failed
+./gui_flow_test    # 应输出 9 passed, 0 failed
 ```
 
 > `gui_flow_test` 会弹出窗口并自动点击,需要图形界面环境。
@@ -268,6 +268,7 @@ cd build
 - [x] 管理员端管理页(充电站/桩增删改查)
 - [x] 管理员端核心页之「充电桩状态」(实时一览)
 - [x] 管理员端「用户管理」页(含封号/解封)
-- [ ] 管理员端核心页之「销售统计」(图表)
+- [x] 管理员端核心页之「销售统计」(图表)
+- [x] 用户端与管理员端 QSS 界面样式
 - [ ] 地图导航(电站定位)
-- [ ] QSS 界面美化 / 充电中实时进度
+- [ ] 充电中实时进度

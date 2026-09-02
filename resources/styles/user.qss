@@ -1,0 +1,204 @@
+/* ============================================================
+ * user.qss —— 用户端(手机风格 360x640)
+ * 强调色:充电绿 #00b26a
+ * ============================================================ */
+
+/* 整体浅灰底 + 顶部品牌绿条 */
+UserMainWindow {
+    background: #eef2f6;
+}
+UserMainWindow #titleLabel {
+    background: #00b26a;
+    color: #ffffff;
+    font-size: 16px;
+    font-weight: 700;
+    padding: 11px 0;
+}
+
+/* 页面标题 */
+UserMainWindow #pageTitleLabel {
+    font-size: 17px;
+    font-weight: 700;
+    color: #1f2a44;
+    padding: 4px 0 2px;
+}
+
+/* ---------- 底部导航条(选中顶边亮绿) ---------- */
+#navStationBtn, #navChargeBtn, #navOrderBtn, #navProfileBtn {
+    background: transparent;
+    border: none;
+    border-top: 2px solid transparent;
+    color: #7c8a9a;
+    font-size: 13px;
+    padding: 8px 0 6px;
+    border-radius: 0;
+}
+#navStationBtn:hover, #navChargeBtn:hover,
+#navOrderBtn:hover, #navProfileBtn:hover {
+    background: #e3e9f0;
+    color: #334155;
+}
+#navStationBtn:checked, #navChargeBtn:checked,
+#navOrderBtn:checked, #navProfileBtn:checked {
+    background: transparent;
+    color: #00b26a;
+    font-weight: 700;
+    border-top: 2px solid #00b26a;
+}
+
+/* ---------- 列表做成白卡片 ---------- */
+#stationList, #orderList, #pileList {
+    background: #ffffff;
+    border: 1px solid #e2e8f0;
+    border-radius: 12px;
+    padding: 4px;
+}
+#stationList::item, #orderList::item, #pileList::item {
+    border-bottom: 1px solid #f0f3f7;
+    border-radius: 8px;
+    padding: 12px 10px;
+}
+#stationList::item:selected, #orderList::item:selected, #pileList::item:selected {
+    background: #e6f8f0;
+}
+
+/* ---------- 电站详情页 ---------- */
+#backButton {
+    background: transparent;
+    color: #00b26a;
+    font-size: 14px;
+    padding: 2px 4px;
+    text-align: left;
+}
+#stationNameLabel {
+    font-size: 20px;
+    font-weight: 700;
+}
+#stationAddrLabel {
+    color: #7a8698;
+    font-size: 12px;
+}
+
+/* ---------- 充电页 ---------- */
+#pileLabel {
+    font-size: 16px;
+    font-weight: 600;
+    color: #334155;
+}
+#priceLabel {
+    color: #7a8698;
+    font-size: 13px;
+}
+#energyLabel, #amountLabel {
+    font-size: 15px;
+    color: #1f2a44;
+    font-weight: 600;
+}
+#timeLabel {
+    font-size: 26px;
+    font-weight: 700;
+    color: #00b26a;
+}
+#startChargeBtn {
+    background: #00b26a;
+    color: #ffffff;
+    font-size: 16px;
+    font-weight: 600;
+    padding: 12px 0;
+    border-radius: 10px;
+}
+#startChargeBtn:hover {
+    background: #00995c;
+}
+#startChargeBtn:pressed {
+    background: #007e4d;
+}
+#startChargeBtn:disabled {
+    background: #bcdccd;
+    color: #eef7f2;
+}
+#stopChargeBtn {
+    background: #ffffff;
+    color: #e5484d;
+    border: 1px solid #ffc9cb;
+    font-size: 16px;
+    font-weight: 600;
+    padding: 11px 0;
+    border-radius: 10px;
+}
+#stopChargeBtn:hover {
+    background: #fff1f2;
+}
+#stopChargeBtn:disabled {
+    background: #f4f6f8;
+    color: #c9d1dc;
+    border-color: #e9edf3;
+}
+
+/* ---------- 订单页结算按钮 ---------- */
+#settleBtn {
+    background: #00b26a;
+    color: #ffffff;
+    font-weight: 600;
+    padding: 9px 0;
+}
+#settleBtn:hover {
+    background: #00995c;
+}
+#settleBtn:disabled {
+    background: #c6e0d4;
+    color: #f0f9f4;
+}
+
+/* ---------- 我的页 ---------- */
+#avatarBtn {
+    background: #00b26a;
+    color: #ffffff;
+    font-size: 16px;
+    font-weight: 700;
+    border: none;
+    border-radius: 36px;
+    padding: 0;
+}
+#avatarBtn:hover {
+    background: #00995c;
+}
+#nicknameLabel {
+    font-size: 17px;
+    font-weight: 700;
+}
+#balanceLabel {
+    font-size: 15px;
+    color: #334155;
+}
+#rechargeBtn {
+    background: #ffffff;
+    color: #00b26a;
+    border: 1px solid #bfe6d5;
+    font-weight: 600;
+    padding: 10px 0;
+    border-radius: 10px;
+}
+#rechargeBtn:hover {
+    background: #eafaf3;
+}
+#changeNicknameBtn {
+    background: #ffffff;
+    color: #334155;
+    border: 1px solid #dde4ec;
+    padding: 10px 0;
+    border-radius: 10px;
+}
+#changeNicknameBtn:hover {
+    background: #f4f7fa;
+}
+#logoutBtn {
+    background: transparent;
+    color: #e5484d;
+    font-size: 13px;
+    padding: 6px 0;
+}
+#logoutBtn:hover {
+    color: #c93a3f;
+    background: transparent;
+}

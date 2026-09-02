@@ -11,8 +11,9 @@ set(CMAKE_AUTORCC ON)
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
-find_package(QT NAMES Qt6 Qt5 COMPONENTS Widgets Sql Network Test REQUIRED)
-find_package(Qt${QT_VERSION_MAJOR} COMPONENTS Widgets Sql Network Test REQUIRED)
+# Charts(销售统计图表)需要系统安装 libqt6charts6-dev,见 README「环境准备」
+find_package(QT NAMES Qt6 Qt5 COMPONENTS Widgets Sql Network Test Charts REQUIRED)
+find_package(Qt${QT_VERSION_MAJOR} COMPONENTS Widgets Sql Network Test Charts REQUIRED)
 
 set(PROJECT_SOURCES
     main.cpp
@@ -100,6 +101,7 @@ target_link_libraries(charging-platform PRIVATE
     Qt${QT_VERSION_MAJOR}::Widgets
     Qt${QT_VERSION_MAJOR}::Sql
     Qt${QT_VERSION_MAJOR}::Network
+    Qt${QT_VERSION_MAJOR}::Charts
 )
 
 # ---- 通信自检工具(独立小程序,不属于主程序) ----
@@ -198,6 +200,7 @@ target_link_libraries(gui_flow_test PRIVATE
     Qt${QT_VERSION_MAJOR}::Widgets
     Qt${QT_VERSION_MAJOR}::Sql
     Qt${QT_VERSION_MAJOR}::Network
+    Qt${QT_VERSION_MAJOR}::Charts
     Qt${QT_VERSION_MAJOR}::Test
 )
 

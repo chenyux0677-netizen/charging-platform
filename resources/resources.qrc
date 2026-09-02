@@ -1,5 +1,6 @@
 <RCC>
     <qresource prefix="/">
+        <file>styles/common.qss</file>
         <file>styles/user.qss</file>
         <file>styles/admin.qss</file>
     </qresource>

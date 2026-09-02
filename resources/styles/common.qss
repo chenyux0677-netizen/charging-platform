@@ -1,0 +1,215 @@
+/* ============================================================
+ * common.qss —— 两端共用基底样式
+ * 配合 user.qss / admin.qss 使用:加载顺序 common → 模式文件,
+ * 模式文件通过 objectName/类名 再覆盖成各自的强调色与布局。
+ * 通用强调色用蓝 #4a6cf7;用户端/管理员端在其 qss 里按需覆盖。
+ * ============================================================ */
+
+* {
+    font-family: "Noto Sans CJK SC", "Noto Sans SC", "WenQuanYi Micro Hei",
+                 "Microsoft YaHei", sans-serif;
+}
+
+QWidget {
+    color: #1f2a44;
+    font-size: 13px;
+}
+
+QLabel {
+    background: transparent;
+}
+
+/* ---------- 输入框 / 下拉框 ---------- */
+QLineEdit, QComboBox {
+    background: #ffffff;
+    border: 1px solid #d6dde7;
+    border-radius: 8px;
+    padding: 7px 10px;
+    color: #1f2a44;
+    font-size: 14px;
+    selection-background-color: #4a6cf7;
+    selection-color: #ffffff;
+}
+QLineEdit:hover, QComboBox:hover {
+    border-color: #b9c4d6;
+}
+QLineEdit:focus, QComboBox:focus {
+    border: 1px solid #4a6cf7;
+}
+QLineEdit:disabled, QComboBox:disabled {
+    background: #f1f4f8;
+    color: #9aa5b4;
+    border-color: #e3e8ef;
+}
+
+/* 下拉弹出列表 */
+QComboBox QAbstractItemView {
+    background: #ffffff;
+    border: 1px solid #d6dde7;
+    border-radius: 6px;
+    padding: 4px;
+    outline: none;
+    selection-background-color: #e9eeff;
+    selection-color: #1f2a44;
+}
+
+/* ---------- 按钮 ---------- */
+QPushButton {
+    background: #edf0f6;
+    color: #2a3550;
+    border: none;
+    border-radius: 8px;
+    padding: 7px 16px;
+    font-size: 14px;
+}
+QPushButton:hover {
+    background: #e1e6ef;
+}
+QPushButton:pressed {
+    background: #d3dae7;
+}
+QPushButton:disabled {
+    background: #f1f3f7;
+    color: #aab4c2;
+}
+
+/* 主按钮(角色选择 / 登录) */
+#userButton, #adminButton, #loginButton {
+    background: #4a6cf7;
+    color: #ffffff;
+    font-weight: 600;
+    font-size: 15px;
+    padding: 8px 0;
+}
+#userButton:hover, #adminButton:hover, #loginButton:hover {
+    background: #3b5ce0;
+}
+#userButton:pressed, #adminButton:pressed, #loginButton:pressed {
+    background: #3350c6;
+}
+#userButton:disabled, #adminButton:disabled, #loginButton:disabled {
+    background: #a9b8ec;
+    color: #eef1ff;
+}
+
+/* ---------- 登录 / 角色选择窗口 ---------- */
+RoleSelectWindow, AdminLoginWindow, UserLoginWindow {
+    background: #ffffff;
+}
+#titleLabel {
+    font-size: 22px;
+    font-weight: 700;
+    color: #1f2a44;
+}
+RoleSelectWindow #titleLabel {
+    font-size: 24px;
+    color: #4a6cf7;
+}
+#hintLabel {
+    color: #7a8698;
+    font-size: 12px;
+}
+
+/* ---------- 列表(用户端为主) ---------- */
+QListWidget {
+    background: transparent;
+    border: none;
+    outline: none;
+}
+QListWidget::item {
+    color: #1f2a44;
+    padding: 9px 8px;
+    border-radius: 8px;
+    font-size: 14px;
+}
+QListWidget::item:hover {
+    background: #f2f5fa;
+}
+QListWidget::item:selected {
+    background: #e9eeff;
+    color: #1f2a44;
+}
+
+/* ---------- 表格(管理员端为主) ---------- */
+QTableWidget {
+    background: #ffffff;
+    border: 1px solid #e3e8ef;
+    border-radius: 10px;
+    gridline-color: #eef1f6;
+    font-size: 13px;
+    selection-background-color: #e9eeff;
+    selection-color: #1f2a44;
+    outline: none;
+}
+QTableWidget::item {
+    padding: 4px 6px;
+}
+QTableWidget QHeaderView {
+    background: transparent;
+    border: none;
+}
+QHeaderView::section {
+    background: #f6f8fb;
+    border: none;
+    border-bottom: 2px solid #e3e8ef;
+    padding: 8px 6px;
+    color: #5f6f84;
+    font-weight: 600;
+}
+QTableCornerButton::section {
+    background: #f6f8fb;
+    border: none;
+}
+
+/* ---------- 滚动条(细条样式) ---------- */
+QScrollBar:vertical {
+    background: transparent;
+    width: 9px;
+    margin: 0;
+}
+QScrollBar::handle:vertical {
+    background: #c8d0dc;
+    border-radius: 4px;
+    min-height: 28px;
+}
+QScrollBar::handle:vertical:hover {
+    background: #b0bac9;
+}
+QScrollBar:horizontal {
+    background: transparent;
+    height: 9px;
+    margin: 0;
+}
+QScrollBar::handle:horizontal {
+    background: #c8d0dc;
+    border-radius: 4px;
+    min-width: 28px;
+}
+QScrollBar::handle:horizontal:hover {
+    background: #b0bac9;
+}
+QScrollBar::add-line:vertical, QScrollBar::sub-line:vertical,
+QScrollBar::add-line:horizontal, QScrollBar::sub-line:horizontal {
+    height: 0;
+    width: 0;
+}
+QScrollBar::add-page:vertical, QScrollBar::sub-page:vertical,
+QScrollBar::add-page:horizontal, QScrollBar::sub-page:horizontal {
+    background: transparent;
+}
+
+/* ---------- 提示 / 消息框 ---------- */
+QToolTip {
+    background: #1f2a44;
+    color: #ffffff;
+    border: none;
+    padding: 4px 8px;
+    border-radius: 4px;
+    font-size: 12px;
+}
+QMessageBox {
+    background: #ffffff;
+}
+QMessageBox QPushButton {
+    min-width: 72px;
+}

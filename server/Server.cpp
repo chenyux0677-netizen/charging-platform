@@ -222,6 +222,73 @@ void Server::handleMessage(QTcpSocket *client, const QJsonObject &msg)
                                               msg.value(QStringLiteral("where")).toString(), bind);
         resp.insert(QStringLiteral("ok"), QJsonValue(true));
         resp.insert(QStringLiteral("data"), QJsonValue(affected));
+    } else if (op == QStringLiteral("startCharge")) {
+        const QHash<QString, QVariant> values =
+            Protocol::jsonToValues(msg.value(QStringLiteral("values")).toObject());
+        const qlonglong orderId = m_ds->startCharge(
+            values.value(QStringLiteral("userId")).toLongLong(),
+            values.value(QStringLiteral("pileId")).toLongLong());
+        if (orderId > 0) {
+            resp.insert(QStringLiteral("ok"), QJsonValue(true));
+            resp.insert(QStringLiteral("data"), QJsonValue(static_cast<qint64>(orderId)));
+        } else {
+            resp.insert(QStringLiteral("ok"), QJsonValue(false));
+            resp.insert(QStringLiteral("error"),
+                        QStringLiteral("开始充电失败:充电桩不可用或账号已有进行中订单"));
+        }
+    } else if (op == QStringLiteral("settleCharge")) {
+        const QHash<QString, QVariant> values =
+            Protocol::jsonToValues(msg.value(QStringLiteral("values")).toObject());
+        const bool ok = m_ds->settleCharge(
+            values.value(QStringLiteral("orderId")).toLongLong());
+        if (ok) {
+            resp.insert(QStringLiteral("ok"), QJsonValue(true));
+            resp.insert(QStringLiteral("data"), QJsonValue(true));
+        } else {
+            resp.insert(QStringLiteral("ok"), QJsonValue(false));
+            resp.insert(QStringLiteral("error"),
+                        QStringLiteral("结算失败:订单不存在/已结算或余额不足"));
+        }
+    } else if (op == QStringLiteral("rechargeBalance")) {
+        const QHash<QString, QVariant> values =
+            Protocol::jsonToValues(msg.value(QStringLiteral("values")).toObject());
+        const bool ok = m_ds->rechargeBalance(
+            values.value(QStringLiteral("userId")).toLongLong(),
+            values.value(QStringLiteral("amount")).toDouble());
+        if (ok) {
+            resp.insert(QStringLiteral("ok"), QJsonValue(true));
+            resp.insert(QStringLiteral("data"), QJsonValue(true));
+        } else {
+            resp.insert(QStringLiteral("ok"), QJsonValue(false));
+            resp.insert(QStringLiteral("error"),
+                        QStringLiteral("充值失败:金额不合法或用户不存在/已冻结"));
+        }
+    } else if (op == QStringLiteral("removeChargingPile")) {
+        const QHash<QString, QVariant> values =
+            Protocol::jsonToValues(msg.value(QStringLiteral("values")).toObject());
+        const bool ok = m_ds->removeChargingPile(
+            values.value(QStringLiteral("pileId")).toLongLong());
+        if (ok) {
+            resp.insert(QStringLiteral("ok"), QJsonValue(true));
+            resp.insert(QStringLiteral("data"), QJsonValue(true));
+        } else {
+            resp.insert(QStringLiteral("ok"), QJsonValue(false));
+            resp.insert(QStringLiteral("error"),
+                        QStringLiteral("该充电桩正在使用或已有订单记录,不能删除"));
+        }
+    } else if (op == QStringLiteral("removeChargingStation")) {
+        const QHash<QString, QVariant> values =
+            Protocol::jsonToValues(msg.value(QStringLiteral("values")).toObject());
+        const bool ok = m_ds->removeChargingStation(
+            values.value(QStringLiteral("stationId")).toLongLong());
+        if (ok) {
+            resp.insert(QStringLiteral("ok"), QJsonValue(true));
+            resp.insert(QStringLiteral("data"), QJsonValue(true));
+        } else {
+            resp.insert(QStringLiteral("ok"), QJsonValue(false));
+            resp.insert(QStringLiteral("error"),
+                        QStringLiteral("该电站包含使用中或已有订单记录的充电桩,不能删除"));
+        }
     } else {
         resp.insert(QStringLiteral("ok"), QJsonValue(false));
         resp.insert(QStringLiteral("error"), QStringLiteral("unknown op: ") + op);

@@ -205,11 +205,10 @@ void StationManagePage::onRemove()
         != QMessageBox::Yes)
         return;
 
+    // 服务端在事务里先判定:站内任一桩使用中/有订单则整站保留
     DataSource *ds = AppContext::instance()->dataSource();
-    if (!ds)
-        return;
-    ds->removeRows(QStringLiteral("charging_piles"),
-                   QStringLiteral("station_id = ?"), QVariantList{id});
-    ds->removeRows(QStringLiteral("charging_stations"),
-                   QStringLiteral("id = ?"), QVariantList{id});
+    if (ds && !ds->removeChargingStation(id)) {
+        QMessageBox::warning(this, QStringLiteral("无法删除"),
+                             QStringLiteral("该电站包含使用中或已有订单记录的充电桩,不能删除。"));
+    }
 }

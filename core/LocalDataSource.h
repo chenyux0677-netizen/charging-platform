@@ -20,6 +20,11 @@ public:
     bool isOpen() const;
     QString dbPath() const;
 
+    // 启动自愈:以"充电中订单"为准,把有订单的桩强制回"使用中"、
+    // 把没有订单却停在"使用中"的桩(上次异常退出遗留)释放回"空闲"。
+    // 由 open() 在建表后调用;新库无数据时为空操作。
+    bool recoverChargingState();
+
     // ---- DataSource 接口 ----
     QueryResult query(const QString &table,
                       const QStringList &fields = {},
@@ -34,6 +39,13 @@ public:
     int removeRows(const QString &table,
                    const QString &where,
                    const QVariantList &bindValues = {}) override;
+
+    // ---- 业务级接口:在单事务内执行,见 DataSource.h 说明 ----
+    qlonglong startCharge(qlonglong userId, qlonglong pileId) override;
+    bool settleCharge(qlonglong orderId) override;
+    bool rechargeBalance(qlonglong userId, double amount) override;
+    bool removeChargingPile(qlonglong pileId) override;
+    bool removeChargingStation(qlonglong stationId) override;
 
 private:
     bool createTablesIfNeeded();

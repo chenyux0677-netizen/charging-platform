@@ -412,7 +412,19 @@ void GuiFlowTest::unfinishedOrderCheck()
     orderList->setCurrentRow(0);
     QVERIFY(settleBtn->isEnabled());
 
-    // 结算 → 完成
+    // 用户余额为 0(自动注册默认值),结算被服务端余额守卫拦下 → 订单保持"充电中"
+    QTest::mouseClick(settleBtn, Qt::LeftButton);
+    QTest::qWait(50);
+    QueryResult afterFirst = ds->query(QStringLiteral("orders"), {},
+        QStringLiteral("id = ?"), QVariantList{orderId});
+    QCOMPARE(afterFirst.first().value(QStringLiteral("status")).toString(),
+             QStringLiteral("充电中"));
+
+    // 充值后再结算 → 成功,订单完成
+    QVERIFY(ds->rechargeBalance(userId, 1000.0));
+    // 失败后列表已刷新,重新选中该行才能点亮结算按钮
+    orderList->setCurrentRow(0);
+    QVERIFY(settleBtn->isEnabled());
     QTest::mouseClick(settleBtn, Qt::LeftButton);
     QTest::qWait(50);
     const QueryResult done = ds->query(QStringLiteral("orders"), {},

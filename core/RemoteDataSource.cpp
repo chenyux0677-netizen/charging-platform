@@ -184,3 +184,59 @@ int RemoteDataSource::removeRows(const QString &table,
     const QVariant data = sendRequestAndWait(request);
     return data.isValid() ? data.toInt() : 0;
 }
+
+qlonglong RemoteDataSource::startCharge(qlonglong userId, qlonglong pileId)
+{
+    const quint32 reqId = ++m_nextReqId;
+    QHash<QString, QVariant> values;
+    values.insert(QStringLiteral("userId"), userId);
+    values.insert(QStringLiteral("pileId"), pileId);
+    const QJsonObject request = Protocol::makeRequest(
+        reqId, QStringLiteral("startCharge"), QString(), {}, QString(), {}, values);
+    const QVariant data = sendRequestAndWait(request);
+    return data.isValid() ? data.toLongLong() : -1;
+}
+
+bool RemoteDataSource::settleCharge(qlonglong orderId)
+{
+    const quint32 reqId = ++m_nextReqId;
+    QHash<QString, QVariant> values;
+    values.insert(QStringLiteral("orderId"), orderId);
+    const QJsonObject request = Protocol::makeRequest(
+        reqId, QStringLiteral("settleCharge"), QString(), {}, QString(), {}, values);
+    const QVariant data = sendRequestAndWait(request);
+    return data.isValid() && data.toBool();
+}
+
+bool RemoteDataSource::rechargeBalance(qlonglong userId, double amount)
+{
+    const quint32 reqId = ++m_nextReqId;
+    QHash<QString, QVariant> values;
+    values.insert(QStringLiteral("userId"), userId);
+    values.insert(QStringLiteral("amount"), amount);
+    const QVariant data = sendRequestAndWait(Protocol::makeRequest(
+        reqId, QStringLiteral("rechargeBalance"), QString(), {}, QString(), {}, values));
+    return data.isValid() && data.toBool();
+}
+
+bool RemoteDataSource::removeChargingPile(qlonglong pileId)
+{
+    const quint32 reqId = ++m_nextReqId;
+    QHash<QString, QVariant> values;
+    values.insert(QStringLiteral("pileId"), pileId);
+    const QJsonObject request = Protocol::makeRequest(
+        reqId, QStringLiteral("removeChargingPile"), QString(), {}, QString(), {}, values);
+    const QVariant data = sendRequestAndWait(request);
+    return data.isValid() && data.toBool();
+}
+
+bool RemoteDataSource::removeChargingStation(qlonglong stationId)
+{
+    const quint32 reqId = ++m_nextReqId;
+    QHash<QString, QVariant> values;
+    values.insert(QStringLiteral("stationId"), stationId);
+    const QJsonObject request = Protocol::makeRequest(
+        reqId, QStringLiteral("removeChargingStation"), QString(), {}, QString(), {}, values);
+    const QVariant data = sendRequestAndWait(request);
+    return data.isValid() && data.toBool();
+}

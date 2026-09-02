@@ -44,6 +44,13 @@ public:
                    const QString &where,
                    const QVariantList &bindValues = {}) override;
 
+    // ---- 业务级接口:把请求发到服务器,由其在单事务内执行 ----
+    qlonglong startCharge(qlonglong userId, qlonglong pileId) override;
+    bool settleCharge(qlonglong orderId) override;
+    bool rechargeBalance(qlonglong userId, double amount) override;
+    bool removeChargingPile(qlonglong pileId) override;
+    bool removeChargingStation(qlonglong stationId) override;
+
 signals:
     void connected();
     void disconnected();

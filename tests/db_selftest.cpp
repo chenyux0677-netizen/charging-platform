@@ -115,12 +115,19 @@ int main(int argc, char *argv[])
     check(signalCount == 1, "dataChanged(users) 信号已发出 1 次");
 
     // 删除
+    // 站下还有电桩,裸删充电站被外键(FOREIGN KEY ... ON DELETE RESTRICT)拦下
     const int removed = ds.removeRows(QStringLiteral("charging_stations"),
                                       QStringLiteral("id = ?"), QVariantList{sid});
-    check(removed == 1, QStringLiteral("删除充电站成功(影响 %1 行)").arg(removed));
-    QueryResult gone = ds.query(QStringLiteral("charging_stations"), {},
-                                QStringLiteral("id = ?"), QVariantList{sid});
-    check(gone.isEmpty(), "删除后按 id 查不到该站");
+    check(removed == 0, QStringLiteral("外键拦下直接删除充电站(影响 %1 行,预期 0)").arg(removed));
+
+    // 走安全删除接口:桩空闲且无订单记录 → 服务端在事务里先删桩再删站
+    const bool stationRemoved = ds.removeChargingStation(sid);
+    check(stationRemoved, "安全删除充电站成功(removeChargingStation)");
+    const QueryResult gonePile = ds.query(QStringLiteral("charging_piles"), {},
+                                          QStringLiteral("station_id = ?"), QVariantList{sid});
+    const QueryResult goneStation = ds.query(QStringLiteral("charging_stations"), {},
+                                             QStringLiteral("id = ?"), QVariantList{sid});
+    check(gonePile.isEmpty() && goneStation.isEmpty(), "删除后该站的电桩与电站都查不到");
 
     out << "\n=== 自检" << (g_fail == 0 ? QStringLiteral("通过 ✅") : QStringLiteral("失败(%1 项) ❌").arg(g_fail))
         << " ===\n";

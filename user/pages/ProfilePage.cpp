@@ -111,18 +111,15 @@ void ProfilePage::onRecharge()
 
     const qlonglong id =
         AppContext::instance()->currentUser().value(QStringLiteral("id")).toLongLong();
-    const QueryResult rows = ds->query(QStringLiteral("users"), {},
-                                       QStringLiteral("id = ?"), QVariantList{id});
-    if (rows.isEmpty())
-        return;
-    QHash<QString, QVariant> up;
-    up.insert(QStringLiteral("balance"),
-              rows.first().value(QStringLiteral("balance")).toDouble() + amount);
-    ds->updateRows(QStringLiteral("users"), up,
-                   QStringLiteral("id = ?"), QVariantList{id});
-    reloadUser();
-    QMessageBox::information(this, QStringLiteral("充值成功"),
-                             QStringLiteral("已充值 %1 元。").arg(amount, 0, 'f', 2));
+    // 加钱在服务器端完成,冻结/不存在的用户不会入账
+    if (ds->rechargeBalance(id, amount)) {
+        reloadUser();
+        QMessageBox::information(this, QStringLiteral("充值成功"),
+                                 QStringLiteral("已充值 %1 元。").arg(amount, 0, 'f', 2));
+    } else {
+        QMessageBox::warning(this, QStringLiteral("充值失败"),
+                             QStringLiteral("充值失败,可能账号不存在或已被冻结。"));
+    }
 }
 
 void ProfilePage::onChangeNickname()

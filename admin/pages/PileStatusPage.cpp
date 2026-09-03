@@ -10,6 +10,33 @@
 #include <QTableWidgetItem>
 #include <QVBoxLayout>
 
+namespace {
+void setProgressCells(QTableWidget *table, int row, const DataRow &order,
+                      const QHash<qlonglong, QString> &nicknames)
+{
+    const auto setText = [&](int col, const QString &text) {
+        QTableWidgetItem *item = table->item(row, col);
+        if (!item) {
+            item = new QTableWidgetItem;
+            item->setTextAlignment(Qt::AlignCenter);
+            table->setItem(row, col, item);
+        }
+        item->setText(text);
+    };
+
+    if (order.isEmpty()) {
+        for (int col = 7; col <= 10; ++col)
+            setText(col, QStringLiteral("—"));
+        return;
+    }
+    setText(7, nicknames.value(order.value(QStringLiteral("user_id")).toLongLong(),
+                               QStringLiteral("—")));
+    setText(8, QString::number(order.value(QStringLiteral("duration_min")).toLongLong()));
+    setText(9, QString::number(order.value(QStringLiteral("energy_kwh")).toDouble(), 'f', 2));
+    setText(10, QString::number(order.value(QStringLiteral("amount")).toDouble(), 'f', 2));
+}
+}
+
 PileStatusPage::PileStatusPage(QWidget *parent)
     : QWidget(parent)
 {
@@ -30,14 +57,18 @@ PileStatusPage::PileStatusPage(QWidget *parent)
     filterRow->addWidget(refreshBtn);
 
     m_table = new QTableWidget(this);
-    m_table->setColumnCount(7);
+    m_table->setColumnCount(11);
     m_table->setHorizontalHeaderLabels({QStringLiteral("桩号"),
                                         QStringLiteral("所属站"),
                                         QStringLiteral("类型"),
                                         QStringLiteral("功率(kW)"),
                                         QStringLiteral("状态"),
                                         QStringLiteral("充电次数"),
-                                        QStringLiteral("充电时长(分)")});
+                                        QStringLiteral("充电时长(分)"),
+                                        QStringLiteral("充电用户"),
+                                        QStringLiteral("本次时长(分)"),
+                                        QStringLiteral("本次电量(kWh)"),
+                                        QStringLiteral("本次费用(元)")});
     m_table->setSelectionBehavior(QAbstractItemView::SelectRows);
     m_table->setSelectionMode(QAbstractItemView::SingleSelection);
     m_table->setEditTriggers(QAbstractItemView::NoEditTriggers);
@@ -59,6 +90,8 @@ PileStatusPage::PileStatusPage(QWidget *parent)
             if (table == QStringLiteral("charging_piles")
                 || table == QStringLiteral("charging_stations"))
                 refresh();
+            else if (table == QStringLiteral("charging_progress"))
+                refreshActiveProgress();
         });
     }
 
@@ -78,6 +111,17 @@ void PileStatusPage::refresh()
     for (const DataRow &st : stations)
         names.insert(st.value(QStringLiteral("id")).toLongLong(),
                      st.value(QStringLiteral("name")).toString());
+
+    QHash<qlonglong, QString> nicknames;
+    const QueryResult users = ds->query(QStringLiteral("users"));
+    for (const DataRow &user : users)
+        nicknames.insert(user.value(QStringLiteral("id")).toLongLong(),
+                         user.value(QStringLiteral("nickname")).toString());
+    QHash<qlonglong, DataRow> activeByPile;
+    const QueryResult activeOrders =
+        ds->query(QStringLiteral("orders"), {}, QStringLiteral("status = '充电中'"));
+    for (const DataRow &order : activeOrders)
+        activeByPile.insert(order.value(QStringLiteral("pile_id")).toLongLong(), order);
 
     const QString filter = m_statusFilter->currentText();
     const QueryResult piles = ds->query(QStringLiteral("charging_piles"));
@@ -100,11 +144,45 @@ void PileStatusPage::refresh()
             m_table->setItem(i, col, item);
         };
         put(0, p.value(QStringLiteral("code")));
+        m_table->item(i, 0)->setData(Qt::UserRole, p.value(QStringLiteral("id")));
         put(1, names.value(p.value(QStringLiteral("station_id")).toLongLong()));
         put(2, p.value(QStringLiteral("type")));
         put(3, QString::number(p.value(QStringLiteral("power_kw")).toDouble(), 'f', 1));
         put(4, p.value(QStringLiteral("status")));
         put(5, p.value(QStringLiteral("charge_count")));
         put(6, p.value(QStringLiteral("charge_duration_min")));
+        DataRow activeOrder;
+        if (p.value(QStringLiteral("status")).toString() == QStringLiteral("使用中"))
+            activeOrder = activeByPile.value(p.value(QStringLiteral("id")).toLongLong());
+        setProgressCells(m_table, i, activeOrder, nicknames);
+    }
+}
+
+void PileStatusPage::refreshActiveProgress()
+{
+    DataSource *ds = AppContext::instance()->dataSource();
+    if (!ds || m_table->rowCount() == 0)
+        return;
+
+    QHash<qlonglong, QString> nicknames;
+    const QueryResult users = ds->query(QStringLiteral("users"));
+    for (const DataRow &user : users)
+        nicknames.insert(user.value(QStringLiteral("id")).toLongLong(),
+                         user.value(QStringLiteral("nickname")).toString());
+    QHash<qlonglong, DataRow> activeByPile;
+    const QueryResult activeOrders =
+        ds->query(QStringLiteral("orders"), {}, QStringLiteral("status = '充电中'"));
+    for (const DataRow &order : activeOrders)
+        activeByPile.insert(order.value(QStringLiteral("pile_id")).toLongLong(), order);
+
+    for (int row = 0; row < m_table->rowCount(); ++row) {
+        QTableWidgetItem *codeItem = m_table->item(row, 0);
+        QTableWidgetItem *statusItem = m_table->item(row, 4);
+        if (!codeItem || !statusItem
+            || statusItem->text() != QStringLiteral("使用中"))
+            continue;
+        setProgressCells(m_table, row,
+                         activeByPile.value(codeItem->data(Qt::UserRole).toLongLong()),
+                         nicknames);
     }
 }

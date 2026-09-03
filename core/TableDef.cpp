@@ -96,6 +96,7 @@ QVector<TableDef> allTableDefs()
         ColumnDef(QStringLiteral("pile_id"),    QStringLiteral("INTEGER"), false, false, true),
         ColumnDef(QStringLiteral("start_time"), QStringLiteral("TEXT"),    false, false, true),
         ColumnDef(QStringLiteral("end_time"),   QStringLiteral("TEXT")),
+        ColumnDef(QStringLiteral("duration_min"), QStringLiteral("INTEGER"), false, false, true, false, QStringLiteral("0")),
         ColumnDef(QStringLiteral("energy_kwh"), QStringLiteral("REAL"),    false, false, false, false, QStringLiteral("0")),
         ColumnDef(QStringLiteral("amount"),     QStringLiteral("REAL"),    false, false, false, false, QStringLiteral("0")),
         ColumnDef(QStringLiteral("status"),     QStringLiteral("TEXT"),    false, false, false, false, QStringLiteral("'充电中'")),
@@ -105,6 +106,7 @@ QVector<TableDef> allTableDefs()
         QStringLiteral("FOREIGN KEY (pile_id) REFERENCES charging_piles(id) ON DELETE RESTRICT"),
         QStringLiteral("CHECK (energy_kwh >= 0)"),
         QStringLiteral("CHECK (amount >= 0)"),
+        QStringLiteral("CHECK (duration_min >= 0)"),
         QStringLiteral("CHECK (status IN ('充电中', '已完成'))")
     };
     orders.indexes = {

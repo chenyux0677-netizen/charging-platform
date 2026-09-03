@@ -233,6 +233,16 @@ qlonglong RemoteDataSource::startCharge(qlonglong userId, qlonglong pileId)
     return data.isValid() ? data.toLongLong() : -1;
 }
 
+bool RemoteDataSource::updateChargingProgress(qlonglong orderId)
+{
+    const quint32 reqId = ++m_nextReqId;
+    QHash<QString, QVariant> values;
+    values.insert(QStringLiteral("orderId"), orderId);
+    const QVariant data = sendRequestAndWait(Protocol::makeRequest(
+        reqId, QStringLiteral("updateChargingProgress"), QString(), {}, QString(), {}, values));
+    return data.isValid() && data.toBool();
+}
+
 bool RemoteDataSource::settleCharge(qlonglong orderId)
 {
     const quint32 reqId = ++m_nextReqId;

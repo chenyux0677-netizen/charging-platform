@@ -342,12 +342,20 @@ void GuiFlowTest::chargeFlow()
         QStringLiteral("user_id = ? AND status = '充电中'"),
         QVariantList{otherUserId});
     QVERIFY(otherActive.isEmpty());
+    QVERIFY(!otherClient.updateChargingProgress(
+        order.value(QStringLiteral("id")).toLongLong()));
 
     // 等 ~2.2 秒(模拟 ~2 分钟),电量应从 0 涨起来
     QTest::qWait(2200);
     const QString energyText = energyLabel->text();
     QVERIFY(energyText.contains(QStringLiteral("kWh")));
     QVERIFY(!energyText.contains(QStringLiteral("0.00 kWh")));
+    const QueryResult liveOrder = ds->query(
+        QStringLiteral("orders"), {}, QStringLiteral("id = ?"),
+        QVariantList{order.value(QStringLiteral("id")).toLongLong()});
+    QVERIFY(liveOrder.first().value(QStringLiteral("duration_min")).toLongLong() >= 1);
+    QVERIFY(liveOrder.first().value(QStringLiteral("energy_kwh")).toDouble() > 0.0);
+    QVERIFY(liveOrder.first().value(QStringLiteral("amount")).toDouble() > 0.0);
 
     // 结束充电 → 结算(提示框被守卫自动关掉)
     QTest::mouseClick(stopBtn, Qt::LeftButton);

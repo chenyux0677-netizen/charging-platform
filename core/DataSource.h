@@ -56,6 +56,9 @@ public:
     // startCharge 成功返回新订单 id，失败（用户已有订单/桩非空闲等）返回 -1。
     virtual qlonglong startCharge(qlonglong userId, qlonglong pileId) = 0;
 
+    // 按服务器时间更新进行中订单的时长、电量和费用，供管理端实时查看。
+    virtual bool updateChargingProgress(qlonglong orderId) = 0;
+
     // 原子完成订单、释放电桩、累计统计并扣减余额。
     // 服务端按订单开始时间计算模拟时长（现实 1 秒 = 模拟 1 分钟）。
     virtual bool settleCharge(qlonglong orderId) = 0;

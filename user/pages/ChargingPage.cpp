@@ -154,6 +154,19 @@ void ChargingPage::onTick()
     m_energyLabel->setText(QStringLiteral("已充电量:%1 kWh").arg(energy, 0, 'f', 2));
     m_amountLabel->setText(QStringLiteral("费用:%1 元").arg(amount, 0, 'f', 2));
     m_timeLabel->setText(QStringLiteral("时长:%1 分钟").arg(m_minutes));
+    reportChargingProgress();
+}
+
+void ChargingPage::reportChargingProgress()
+{
+    if (!m_charging || m_orderId <= 0 || m_progressBusy)
+        return;
+    DataSource *ds = AppContext::instance()->dataSource();
+    if (!ds)
+        return;
+    m_progressBusy = true;
+    ds->updateChargingProgress(m_orderId);
+    m_progressBusy = false;
 }
 
 void ChargingPage::stopCharging()

@@ -16,6 +16,7 @@ public:
 
 private slots:
     void refresh();
+    void refreshActiveProgress();
 
 private:
     QComboBox *m_statusFilter = nullptr;

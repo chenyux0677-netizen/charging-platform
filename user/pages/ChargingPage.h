@@ -32,6 +32,7 @@ private:
     void startCharging();
     void stopCharging();
     void onTick();
+    void reportChargingProgress();
     bool findUnfinishedOrder() const;
 
     QLabel *m_pileLabel = nullptr;
@@ -49,6 +50,7 @@ private:
     qlonglong m_orderId = 0;
     int m_minutes = 0;
     bool m_charging = false;
+    bool m_progressBusy = false;
 };
 
 #endif // CHARGINGPAGE_H

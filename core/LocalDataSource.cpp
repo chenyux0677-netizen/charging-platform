@@ -12,6 +12,14 @@
 namespace {
 // 本机唯一的命名连接,避免重复注册报警
 const QString kConnName = QStringLiteral("charging_local");
+
+void computeChargeMetrics(const QDateTime &start, double powerKw, double pricePerKwh,
+                          qlonglong &minutes, double &energy, double &amount)
+{
+    minutes = qMax<qlonglong>(1, start.secsTo(QDateTime::currentDateTime()));
+    energy = powerKw * minutes / 60.0;
+    amount = energy * pricePerKwh;
+}
 }
 
 LocalDataSource::LocalDataSource(QObject *parent)
@@ -438,18 +446,20 @@ bool LocalDataSource::settleCharge(qlonglong orderId)
         m_db.rollback();
         return false;
     }
-    const qlonglong minutes = qMax<qlonglong>(
-        1, start.secsTo(QDateTime::currentDateTime()));
-    const double energy = pile.value(0).toDouble() * minutes / 60.0;
-    const double amount = energy * pile.value(1).toDouble();
+    qlonglong minutes = 0;
+    double energy = 0.0;
+    double amount = 0.0;
+    computeChargeMetrics(start, pile.value(0).toDouble(), pile.value(1).toDouble(),
+                         minutes, energy, amount);
     const QString now = QDateTime::currentDateTime().toString(Qt::ISODate);
 
     // status 条件保证同一订单只会被成功结算一次。
     QSqlQuery finish(m_db);
     finish.prepare(QStringLiteral(
-        "UPDATE orders SET end_time = ?, energy_kwh = ?, amount = ?, status = '已完成' "
-        "WHERE id = ? AND status = '充电中'"));
+        "UPDATE orders SET end_time = ?, duration_min = ?, energy_kwh = ?, amount = ?, "
+        "status = '已完成' WHERE id = ? AND status = '充电中'"));
     finish.addBindValue(now);
+    finish.addBindValue(minutes);
     finish.addBindValue(energy);
     finish.addBindValue(amount);
     finish.addBindValue(orderId);
@@ -494,6 +504,48 @@ bool LocalDataSource::settleCharge(qlonglong orderId)
                    .arg(minutes)
                    .arg(energy, 0, 'f', 2)
                    .arg(amount, 0, 'f', 2);
+    return true;
+}
+
+bool LocalDataSource::updateChargingProgress(qlonglong orderId)
+{
+    if (!m_db.isOpen() || orderId <= 0)
+        return false;
+
+    QSqlQuery order(m_db);
+    order.prepare(QStringLiteral(
+        "SELECT pile_id, start_time FROM orders WHERE id = ? AND status = '充电中'"));
+    order.addBindValue(orderId);
+    if (!order.exec() || !order.next())
+        return false;
+    const qlonglong pileId = order.value(0).toLongLong();
+    const QDateTime start = QDateTime::fromString(order.value(1).toString(), Qt::ISODate);
+
+    QSqlQuery pile(m_db);
+    pile.prepare(QStringLiteral(
+        "SELECT power_kw, price_per_kwh FROM charging_piles WHERE id = ?"));
+    pile.addBindValue(pileId);
+    if (!pile.exec() || !pile.next() || !start.isValid())
+        return false;
+
+    qlonglong minutes = 0;
+    double energy = 0.0;
+    double amount = 0.0;
+    computeChargeMetrics(start, pile.value(0).toDouble(), pile.value(1).toDouble(),
+                         minutes, energy, amount);
+
+    QSqlQuery update(m_db);
+    update.prepare(QStringLiteral(
+        "UPDATE orders SET duration_min = ?, energy_kwh = ?, amount = ? "
+        "WHERE id = ? AND status = '充电中'"));
+    update.addBindValue(minutes);
+    update.addBindValue(energy);
+    update.addBindValue(amount);
+    update.addBindValue(orderId);
+    if (!update.exec() || update.numRowsAffected() != 1)
+        return false;
+
+    emit dataChanged(QStringLiteral("charging_progress"));
     return true;
 }
 

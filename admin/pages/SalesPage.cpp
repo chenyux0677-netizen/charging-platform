@@ -244,7 +244,12 @@ void SalesPage::refresh()
             set->append(s.revenue);
         barSeries->append(set);
         barSeries->setLabelsVisible(true);
-        barSeries->setLabelsFormat(QStringLiteral("%.1f"));
+        // Qt6 Charts 的柱上标签只认 @value 占位符,不支持 C printf 的 "%.1f"
+        // ——那种写法会被当作普通文字原样画在每个柱子里。
+        // 这里不设 labelsFormat(走默认:显示该柱数值),用 labelsPrecision
+        // 限制有效数字,并让数值显示在柱顶外侧。
+        barSeries->setLabelsPrecision(4);
+        barSeries->setLabelsPosition(QAbstractBarSeries::LabelsOutsideEnd);
         chart->addSeries(barSeries);
 
         auto *axisX = new QBarCategoryAxis;
@@ -260,6 +265,12 @@ void SalesPage::refresh()
         axisY->setLabelFormat(QStringLiteral("%.1f"));
         chart->addAxis(axisY, Qt::AlignLeft);
         barSeries->attachAxis(axisY);
+        // 柱顶标签需要余量:Y 上限抬高到最高营收的 1.2 倍,避免最高的柱顶标签贴边被裁
+        double maxRevenue = 0.0;
+        for (const StationStat &s : stats)
+            maxRevenue = qMax(maxRevenue, s.revenue);
+        if (maxRevenue > 0.0)
+            axisY->setRange(0.0, maxRevenue * 1.2);
         chart->legend()->setVisible(false);
 
         replaceChart(m_barView, chart);

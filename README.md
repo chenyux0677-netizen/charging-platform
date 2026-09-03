@@ -70,7 +70,6 @@ tests/       自检程序(db_selftest / net_selftest / gui_flow_test)
 ## 未实现 / 待办
 
 - [ ] **地图导航**:电站在地图上定位(需 Qt6WebEngine)
-- [ ] **旧库补约束 / 索引**:表级 CHECK / 外键 / 部分唯一索引只对新建库生效,旧 `app.db` 不受保护(可删库重建)
 
 ## 编译与运行
 

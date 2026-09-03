@@ -43,7 +43,10 @@ PileManagePage::PileManagePage(QWidget *parent)
     m_table->setSelectionMode(QAbstractItemView::SingleSelection);
     m_table->setEditTriggers(QAbstractItemView::NoEditTriggers);
     m_table->verticalHeader()->setVisible(false);
-    m_table->horizontalHeader()->setStretchLastSection(true);
+    QHeaderView *header = m_table->horizontalHeader();
+    header->setStretchLastSection(false);
+    header->setSectionResizeMode(QHeaderView::ResizeToContents);
+    header->setSectionResizeMode(2, QHeaderView::Stretch);
 
     auto *addBtn = new QPushButton(QStringLiteral("新增电桩"), this);
     auto *editBtn = new QPushButton(QStringLiteral("修改"), this);

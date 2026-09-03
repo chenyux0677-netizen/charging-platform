@@ -23,12 +23,14 @@ public:
 signals:
     void backRequested();
     void pileChosen(const DataRow &pile);
+    void navigationRequested(const DataRow &station);
 
 private:
     void refreshPiles();
     void onPileClicked();
 
     QPushButton *m_backButton = nullptr;
+    QPushButton *m_navigationButton = nullptr;
     QLabel *m_stationNameLabel = nullptr;
     QLabel *m_stationAddrLabel = nullptr;
     QListWidget *m_pileList = nullptr;

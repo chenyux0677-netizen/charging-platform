@@ -30,9 +30,9 @@
 core/    数据核心层(DataSource 接口 / 本地/网络实现 / 表定义)
 server/  数据库中间层(内嵌服务器:收请求、回响应、广播变化)
 common/  两端共用(角色选择页 / 全局上下文 / 协议)
-user/    用户端(登录、主窗口、5 个页面)
+user/    用户端(登录、主窗口、6 个页面)
 admin/   管理员端(登录、主窗口、5 个页面)
-tests/   自检程序(db_selftest / net_selftest / gui_flow_test)
+tests/   自检程序(db / net / gui / map / navigation selftest)
 resources/  QSS 样式资源
 ```
 
@@ -43,7 +43,9 @@ resources/  QSS 样式资源
 ### 用户端
 - 手机号登录(首次输入**自动注册**,昵称 = "用户" + 手机号后四位)
 - 电站列表(名称 / 地址 / 下属电桩价格范围 / 每站桩数与空闲桩数)
+- 支持腾讯地图全国地点关键词 / 地址候选；选中后覆盖模拟位置，并按该位置距离排序电站
 - 电站详情:按类型/功率筛选桩,选桩进入充电
+- 电站详情可进入腾讯地图页，支持驾车 / 步行路线、距离和预计时间
 - 充电(软件模拟:**1 秒 = 1 分钟**;实时显示时长/电量/费用)
 - 结束充电自动结算(时长 × 功率 = 电量,电量 × 单价 = 金额;余额扣款)
 - 订单页:历史订单明细,**未完成("充电中")订单可在订单页手动结算**
@@ -54,7 +56,7 @@ resources/  QSS 样式资源
 - **销售统计**:已完成订单汇总，可按全部 / 今日 / 近 7 天 / 近 30 天筛选，展示各站营收柱状图和订单占比饼图
 - **充电桩状态**:全站电桩实时状态一览(只读),可按状态筛选，并显示充电用户、时长、电量和费用
 - **充电桩管理**:增 / 改 / 删充电桩,可按电站筛选
-- **充电站管理**:增 / 改 / 删充电站(有关联订单或使用中电桩时拒绝删除)
+- **充电站管理**:增 / 改 / 删充电站；新增和修改时可搜索地点并自动填写地址、经纬度
 - **用户管理**:用户列表(按状态筛选 / 余额 / 注册时间),**封号(冻结) / 解封**,与用户端登录拦截闭环
 
 ### 数据层与通信
@@ -72,12 +74,8 @@ resources/  QSS 样式资源
 - `db_selftest`:数据库建表 / 增删改查
 - `net_selftest`:登录会话 / 越权拦截 / 跨客户端请求 / 广播同步
 - `gui_flow_test`:**9 个用例全部通过**(登录链路 / 充电闭环 / 异常退出恢复 / 管理员页面)
-
-## 未实现 / 待办
-
-- [ ] **地图导航**:电站在地图上定位(需 Qt6WebEngine)
-
----
+- `map_selftest`:腾讯地址解析 / 关键词候选 API 联调
+- `navigation_selftest`:Qt WebEngine 与腾讯 JavaScript API GL 地图初始化
 
 ## 在本地运行这个项目(详细)
 
@@ -91,9 +89,10 @@ resources/  QSS 样式资源
 | CMake(≥3.5) | 构建 | `sudo apt install cmake` |
 | Qt 6 开发库 | 界面/数据库/网络/测试 | `sudo apt install qt6-base-dev libqt6sql6-sqlite qt6-base-dev-tools` |
 | Qt Charts | 销售统计图表 | `sudo apt install libqt6charts6-dev` |
+| Qt WebEngine | 腾讯地图页面 | `sudo apt install qt6-webengine-dev libnss3 libasound2 libxkbfile1` |
 | (可选) Qt Creator | 用 IDE 开发/运行 | `sudo apt install qtcreator` |
 
-> 说明:`qt6-base-dev` 提供 Widgets / Sql / Network / Test 组件;`libqt6sql6-sqlite` 提供 SQLite 数据库驱动，`libqt6charts6-dev` 提供销售统计图表。地图功能尚未实现，因此不需要 Qt6WebEngine。
+> 说明:`qt6-base-dev` 提供 Widgets / Sql / Network / Test 组件；`libqt6sql6-sqlite` 提供 SQLite 数据库驱动；地图页依赖 Qt WebEngine。腾讯地图 Key 放在运行目录的 `map.ini` 中，格式参考 `config/map.example.ini`，该文件不会提交到 Git。
 
 验证安装是否就绪:
 
@@ -235,9 +234,12 @@ cd build
 ./db_selftest      # 应输出"自检通过 ✅"
 ./net_selftest     # 应输出"自检通过 ✅"
 ./gui_flow_test    # 应输出 9 passed, 0 failed
+./map_selftest --suggest  # 真实测试腾讯地点候选
+./map_selftest --route    # 真实测试腾讯驾车路线
+./navigation_selftest     # 真实测试 WebEngine 地图加载
 ```
 
-> `gui_flow_test` 会弹出窗口并自动点击,需要图形界面环境。
+> `gui_flow_test` 会弹出窗口并自动点击；两个地图自检需要有效 Key 和互联网连接，`navigation_selftest` 还需要图形界面环境。
 
 ## 数据说明
 
@@ -270,5 +272,5 @@ cd build
 - [x] 管理员端「用户管理」页(含封号/解封)
 - [x] 管理员端核心页之「销售统计」(图表)
 - [x] 用户端与管理员端 QSS 界面样式
-- [ ] 地图导航(电站定位)
+- [x] 地图路线规划(地址搜索、驾车/步行路线与地图展示)
 - [x] 充电中实时进度

@@ -12,8 +12,8 @@ set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
 # Charts(销售统计图表)需要系统安装 libqt6charts6-dev,见 README「环境准备」
-find_package(QT NAMES Qt6 Qt5 COMPONENTS Widgets Sql Network Test Charts REQUIRED)
-find_package(Qt${QT_VERSION_MAJOR} COMPONENTS Widgets Sql Network Test Charts REQUIRED)
+find_package(QT NAMES Qt6 Qt5 COMPONENTS Widgets Sql Network Test Charts WebEngineWidgets REQUIRED)
+find_package(Qt${QT_VERSION_MAJOR} COMPONENTS Widgets Sql Network Test Charts WebEngineWidgets REQUIRED)
 
 set(PROJECT_SOURCES
     main.cpp
@@ -61,6 +61,8 @@ set(PROJECT_SOURCES
     user/pages/OrderPage.cpp
     user/pages/ProfilePage.h
     user/pages/ProfilePage.cpp
+    user/pages/NavigationPage.h
+    user/pages/NavigationPage.cpp
     user/services/MapService.h
     user/services/MapService.cpp
     user/services/ChargeService.h
@@ -102,6 +104,7 @@ target_link_libraries(charging-platform PRIVATE
     Qt${QT_VERSION_MAJOR}::Sql
     Qt${QT_VERSION_MAJOR}::Network
     Qt${QT_VERSION_MAJOR}::Charts
+    Qt${QT_VERSION_MAJOR}::WebEngineWidgets
 )
 
 # ---- 通信自检工具(独立小程序,不属于主程序) ----
@@ -144,6 +147,32 @@ target_link_libraries(db_selftest PRIVATE
     Qt${QT_VERSION_MAJOR}::Network
 )
 
+# ---- 腾讯地图 WebService 自检(地址、地点候选、路线) ----
+qt_add_executable(map_selftest
+    tests/map_selftest.cpp
+    user/services/MapService.h
+    user/services/MapService.cpp
+)
+target_link_libraries(map_selftest PRIVATE
+    Qt${QT_VERSION_MAJOR}::Network
+)
+
+# ---- 腾讯地图 WebEngine 自检(需要 JavaScript API GL 权限) ----
+qt_add_executable(navigation_selftest
+    tests/navigation_selftest.cpp
+    core/DataSource.h
+    core/DataSource.cpp
+    user/pages/NavigationPage.h
+    user/pages/NavigationPage.cpp
+    user/services/MapService.h
+    user/services/MapService.cpp
+)
+target_link_libraries(navigation_selftest PRIVATE
+    Qt${QT_VERSION_MAJOR}::Widgets
+    Qt${QT_VERSION_MAJOR}::Network
+    Qt${QT_VERSION_MAJOR}::WebEngineWidgets
+)
+
 # ---- 界面自检(脚本化点击登录链路,独立小程序,不属于主程序) ----
 qt_add_executable(gui_flow_test
     tests/gui_flow_test.cpp
@@ -163,6 +192,8 @@ qt_add_executable(gui_flow_test
     common/AppContext.cpp
     common/RoleSelectWindow.h
     common/RoleSelectWindow.cpp
+    common/WidgetUtil.h
+    common/WidgetUtil.cpp
     server/Server.h
     server/Server.cpp
     user/UserLoginWindow.h
@@ -179,8 +210,12 @@ qt_add_executable(gui_flow_test
     user/pages/OrderPage.cpp
     user/pages/ProfilePage.h
     user/pages/ProfilePage.cpp
+    user/pages/NavigationPage.h
+    user/pages/NavigationPage.cpp
     user/services/ChargeService.h
     user/services/ChargeService.cpp
+    user/services/MapService.h
+    user/services/MapService.cpp
     admin/AdminLoginWindow.h
     admin/AdminLoginWindow.cpp
     admin/AdminMainWindow.h
@@ -202,6 +237,7 @@ target_link_libraries(gui_flow_test PRIVATE
     Qt${QT_VERSION_MAJOR}::Network
     Qt${QT_VERSION_MAJOR}::Charts
     Qt${QT_VERSION_MAJOR}::Test
+    Qt${QT_VERSION_MAJOR}::WebEngineWidgets
 )
 
 set_target_properties(charging-platform PROPERTIES

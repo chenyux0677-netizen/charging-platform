@@ -3,6 +3,7 @@
 #include "user/pages/ChargingPage.h"
 #include "user/pages/OrderPage.h"
 #include "user/pages/ProfilePage.h"
+#include "user/pages/NavigationPage.h"
 #include "user/pages/StationDetailPage.h"
 #include "user/pages/StationListPage.h"
 
@@ -37,6 +38,7 @@ UserMainWindow::UserMainWindow(QWidget *parent)
     m_chargingPage = new ChargingPage(this);
     m_orderPage = new OrderPage(this);
     m_profilePage = new ProfilePage(this);
+    m_navigationPage = new NavigationPage(this);
 
     m_stack = new QStackedWidget(this);
     m_stack->setObjectName(QStringLiteral("pageStack"));
@@ -45,6 +47,7 @@ UserMainWindow::UserMainWindow(QWidget *parent)
     m_stack->addWidget(m_chargingPage);      // 2 充电
     m_stack->addWidget(m_orderPage);         // 3 订单
     m_stack->addWidget(m_profilePage);       // 4 我的
+    m_stack->addWidget(m_navigationPage);    // 5 导航(临时页)
 
     // 顶部标题栏
     auto *titleBar = new QLabel(QStringLiteral("充电桩用户端"), this);
@@ -90,6 +93,16 @@ UserMainWindow::UserMainWindow(QWidget *parent)
         m_chargingPage->setPile(pile);
         switchTo(2);
     });
+    connect(m_stationDetailPage, &StationDetailPage::navigationRequested,
+            this, [this](const DataRow &station) {
+        m_navigationPage->showLocations(
+            m_stationListPage->currentLocationName(),
+            m_stationListPage->currentLatitude(),
+            m_stationListPage->currentLongitude(), station);
+        switchTo(5);
+    });
+    connect(m_navigationPage, &NavigationPage::backRequested,
+            this, [this] { switchTo(1); });
     connect(m_chargingPage, &ChargingPage::goToOrders,
             this, [this] { switchTo(3); });
     connect(m_chargingPage, &ChargingPage::backToStations,
@@ -115,7 +128,7 @@ void UserMainWindow::switchTo(int index)
 
     // 底部导航选中态同步(详情页算"电站")
     if (m_navButtons.size() == 4) {
-        m_navButtons[0]->setChecked(index == 0 || index == 1);
+        m_navButtons[0]->setChecked(index == 0 || index == 1 || index == 5);
         m_navButtons[1]->setChecked(index == 2);
         m_navButtons[2]->setChecked(index == 3);
         m_navButtons[3]->setChecked(index == 4);

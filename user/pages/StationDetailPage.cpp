@@ -22,6 +22,10 @@ StationDetailPage::StationDetailPage(QWidget *parent)
     m_stationAddrLabel->setObjectName(QStringLiteral("stationAddrLabel"));
     m_stationAddrLabel->setWordWrap(true);
 
+    m_navigationButton = new QPushButton(QStringLiteral("导航到这里"), this);
+    m_navigationButton->setObjectName(QStringLiteral("navigationButton"));
+    m_navigationButton->setEnabled(false);
+
     m_pileList = new QListWidget(this);
     m_pileList->setObjectName(QStringLiteral("pileList"));
 
@@ -29,9 +33,14 @@ StationDetailPage::StationDetailPage(QWidget *parent)
     layout->addWidget(m_backButton);
     layout->addWidget(m_stationNameLabel);
     layout->addWidget(m_stationAddrLabel);
+    layout->addWidget(m_navigationButton);
     layout->addWidget(m_pileList, 1);
 
     connect(m_backButton, &QPushButton::clicked, this, &StationDetailPage::backRequested);
+    connect(m_navigationButton, &QPushButton::clicked, this, [this] {
+        if (!m_station.isEmpty())
+            emit navigationRequested(m_station);
+    });
     connect(m_pileList, &QListWidget::itemClicked, this, &StationDetailPage::onPileClicked);
 
     // 充电进度变化(占用/空闲) → 刷新桩状态
@@ -49,6 +58,9 @@ void StationDetailPage::setStation(const DataRow &station)
     m_stationNameLabel->setText(station.value(QStringLiteral("name")).toString());
     m_stationAddrLabel->setText(QStringLiteral("地址:%1")
                                     .arg(station.value(QStringLiteral("address")).toString()));
+    m_navigationButton->setEnabled(
+        !station.value(QStringLiteral("lat")).isNull()
+        && !station.value(QStringLiteral("lng")).isNull());
     refreshPiles();
 }
 

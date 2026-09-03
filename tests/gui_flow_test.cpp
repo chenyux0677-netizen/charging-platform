@@ -225,7 +225,7 @@ void GuiFlowTest::userLoginFlow()
     mainWin.show();
     QStackedWidget *stack = find<QStackedWidget>(&mainWin, "pageStack");
     QVERIFY(stack);
-    QCOMPARE(stack->count(), 5);
+    QCOMPARE(stack->count(), 6); // 电站列表/详情、充电、订单、我的、地图导航
 }
 
 // ---- ④ 充电业务数据:种子电站/电桩 + 新列存在 ----

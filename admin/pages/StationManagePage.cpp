@@ -1,6 +1,8 @@
 #include "StationManagePage.h"
 
 #include "common/AppContext.h"
+#include "common/WidgetUtil.h"
+#include "user/services/MapService.h"
 
 #include <QDialog>
 #include <QDialogButtonBox>
@@ -10,9 +12,11 @@
 #include <QHeaderView>
 #include <QLabel>
 #include <QLineEdit>
+#include <QListWidget>
 #include <QMessageBox>
 #include <QPushButton>
 #include <QTableWidgetItem>
+#include <QTimer>
 #include <QVBoxLayout>
 
 StationManagePage::StationManagePage(QWidget *parent)
@@ -32,7 +36,13 @@ StationManagePage::StationManagePage(QWidget *parent)
     m_table->setSelectionMode(QAbstractItemView::SingleSelection);
     m_table->setEditTriggers(QAbstractItemView::NoEditTriggers);
     m_table->verticalHeader()->setVisible(false);
-    m_table->horizontalHeader()->setStretchLastSection(true);
+    QHeaderView *header = m_table->horizontalHeader();
+    header->setStretchLastSection(false);
+    header->setSectionResizeMode(0, QHeaderView::ResizeToContents);
+    header->setSectionResizeMode(1, QHeaderView::ResizeToContents);
+    header->setSectionResizeMode(2, QHeaderView::Stretch);
+    header->setSectionResizeMode(3, QHeaderView::ResizeToContents);
+    header->setSectionResizeMode(4, QHeaderView::ResizeToContents);
 
     auto *addBtn = new QPushButton(QStringLiteral("新增电站"), this);
     auto *editBtn = new QPushButton(QStringLiteral("修改"), this);
@@ -93,8 +103,17 @@ QHash<QString, QVariant> StationManagePage::editStationDialog(const QHash<QStrin
     dlg.setWindowTitle(initial.isEmpty() ? QStringLiteral("新增电站")
                                          : QStringLiteral("修改电站"));
 
+    auto *searchEdit = new QLineEdit(&dlg);
+    searchEdit->setObjectName(QStringLiteral("stationLocationSearchEdit"));
+    searchEdit->setPlaceholderText(QStringLiteral("全国搜索地点关键词或地址"));
+
+    auto *suggestionList = new QListWidget(&dlg);
+    suggestionList->setObjectName(QStringLiteral("stationLocationSuggestionList"));
+    suggestionList->hide();
+
     auto *nameEdit = new QLineEdit(initial.value(QStringLiteral("name")).toString(), &dlg);
     auto *addrEdit = new QLineEdit(initial.value(QStringLiteral("address")).toString(), &dlg);
+    addrEdit->setMinimumWidth(420);
 
     auto *latSpin = new QDoubleSpinBox(&dlg);
     latSpin->setRange(-90.0, 90.0);
@@ -107,6 +126,7 @@ QHash<QString, QVariant> StationManagePage::editStationDialog(const QHash<QStrin
     lngSpin->setValue(initial.value(QStringLiteral("lng")).toDouble());
 
     auto *form = new QFormLayout;
+    form->addRow(QStringLiteral("地点搜索"), searchEdit);
     form->addRow(QStringLiteral("名称 *"), nameEdit);
     form->addRow(QStringLiteral("地址 *"), addrEdit);
     form->addRow(QStringLiteral("纬度"), latSpin);
@@ -118,7 +138,65 @@ QHash<QString, QVariant> StationManagePage::editStationDialog(const QHash<QStrin
     form->addRow(btnBox);
 
     dlg.setLayout(form);
-    dlg.setMinimumWidth(360);
+    dlg.setMinimumWidth(600);
+
+    auto *mapService = new MapService(&dlg);
+    auto *suggestionTimer = new QTimer(&dlg);
+    suggestionTimer->setSingleShot(true);
+    suggestionTimer->setInterval(500);
+    if (!mapService->hasApiKey()) {
+        searchEdit->setEnabled(false);
+        searchEdit->setPlaceholderText(QStringLiteral("未配置地图 Key，可手动填写下方信息"));
+    }
+    connect(searchEdit, &QLineEdit::textEdited, &dlg,
+            [mapService, suggestionTimer](const QString &text) {
+        suggestionTimer->stop();
+        if (text.trimmed().size() < 2) {
+            mapService->suggest(QString());
+            return;
+        }
+        suggestionTimer->start();
+    });
+    connect(suggestionTimer, &QTimer::timeout, &dlg,
+            [mapService, searchEdit] { mapService->suggest(searchEdit->text()); });
+    connect(mapService, &MapService::suggestionsSucceeded, &dlg,
+            [suggestionList, searchEdit](const QVariantList &suggestions) {
+        suggestionList->clear();
+        for (const QVariant &value : suggestions) {
+            const QVariantMap suggestion = value.toMap();
+            const QString title = suggestion.value(QStringLiteral("title")).toString();
+            const QString address = suggestion.value(QStringLiteral("address")).toString();
+            auto *item = new QListWidgetItem(
+                address.isEmpty() ? title : QStringLiteral("%1\n%2").arg(title, address));
+            item->setData(Qt::UserRole, suggestion);
+            suggestionList->addItem(item);
+        }
+        WidgetUtil::showSuggestionPopup(suggestionList, searchEdit);
+    });
+    connect(mapService, &MapService::suggestionsFailed, &dlg,
+            [suggestionList, searchEdit](const QString &message) {
+        suggestionList->clear();
+        auto *item = new QListWidgetItem(message);
+        item->setFlags(Qt::NoItemFlags);
+        suggestionList->addItem(item);
+        WidgetUtil::showSuggestionPopup(suggestionList, searchEdit);
+    });
+    const auto applySuggestion = [=](QListWidgetItem *item) {
+        if (!item || !(item->flags() & Qt::ItemIsEnabled))
+            return;
+        const QVariantMap suggestion = item->data(Qt::UserRole).toMap();
+        const QString title = suggestion.value(QStringLiteral("title")).toString();
+        const QString address = suggestion.value(QStringLiteral("address")).toString();
+        searchEdit->setText(title);
+        if (nameEdit->text().trimmed().isEmpty())
+            nameEdit->setText(title);
+        addrEdit->setText(address.isEmpty() ? title : address);
+        latSpin->setValue(suggestion.value(QStringLiteral("lat")).toDouble());
+        lngSpin->setValue(suggestion.value(QStringLiteral("lng")).toDouble());
+        suggestionList->hide();
+    };
+    connect(suggestionList, &QListWidget::itemClicked, &dlg, applySuggestion);
+    connect(suggestionList, &QListWidget::itemActivated, &dlg, applySuggestion);
 
     if (dlg.exec() != QDialog::Accepted)
         return {};

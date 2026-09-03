@@ -1,11 +1,15 @@
 #include "StationListPage.h"
 
 #include "common/AppContext.h"
+#include "common/WidgetUtil.h"
+#include "user/services/MapService.h"
 
 #include <QComboBox>
 #include <QLabel>
+#include <QLineEdit>
 #include <QListWidget>
 #include <QPair>
+#include <QTimer>
 #include <QtMath>
 #include <QVBoxLayout>
 #include <QVector>
@@ -50,6 +54,24 @@ StationListPage::StationListPage(QWidget *parent)
         m_regionCombo->setItemData(idx, r.second.first, Qt::UserRole);
         m_regionCombo->setItemData(idx, r.second.second, Qt::UserRole + 1);
     }
+    m_addressEdit = new QLineEdit(this);
+    m_addressEdit->setObjectName(QStringLiteral("addressEdit"));
+    m_addressEdit->setPlaceholderText(QStringLiteral("全国搜索地点关键词或地址，选择候选"));
+
+    m_locationStatusLabel = new QLabel(QStringLiteral("当前位置：模拟定位·北京海淀"), this);
+    m_locationStatusLabel->setObjectName(QStringLiteral("locationStatusLabel"));
+    m_locationStatusLabel->setWordWrap(true);
+
+    m_suggestionList = new QListWidget(this);
+    m_suggestionList->setObjectName(QStringLiteral("suggestionList"));
+    m_suggestionList->hide();
+
+    m_currentLat = m_regionCombo->itemData(0, Qt::UserRole).toDouble();
+    m_currentLng = m_regionCombo->itemData(0, Qt::UserRole + 1).toDouble();
+    m_mapService = new MapService(this);
+    m_suggestionTimer = new QTimer(this);
+    m_suggestionTimer->setSingleShot(true);
+    m_suggestionTimer->setInterval(500);
 
     m_stationList = new QListWidget(this);
     m_stationList->setObjectName(QStringLiteral("stationList"));
@@ -57,12 +79,51 @@ StationListPage::StationListPage(QWidget *parent)
     auto *layout = new QVBoxLayout(this);
     layout->addWidget(title);
     layout->addWidget(m_regionCombo);
+    layout->addWidget(m_addressEdit);
+    layout->addWidget(m_locationStatusLabel);
     layout->addWidget(m_stationList, 1);
 
     connect(m_regionCombo, &QComboBox::currentIndexChanged,
-            this, &StationListPage::refresh);
+            this, &StationListPage::onRegionChanged);
+    connect(m_addressEdit, &QLineEdit::textEdited, this, [this](const QString &text) {
+        m_suggestionTimer->stop();
+        if (text.trimmed().size() < 2) {
+            m_mapService->suggest(QString());
+            return;
+        }
+        m_suggestionTimer->start();
+    });
+    connect(m_suggestionTimer, &QTimer::timeout,
+            this, &StationListPage::requestSuggestions);
+    connect(m_suggestionList, &QListWidget::itemClicked,
+            this, &StationListPage::useSelectedSuggestion);
+    connect(m_suggestionList, &QListWidget::itemActivated,
+            this, &StationListPage::useSelectedSuggestion);
     connect(m_stationList, &QListWidget::itemClicked,
             this, &StationListPage::onItemClicked);
+
+    connect(m_mapService, &MapService::suggestionsSucceeded, this,
+            [this](const QVariantList &suggestions) {
+        m_suggestionList->clear();
+        for (const QVariant &value : suggestions) {
+            const QVariantMap suggestion = value.toMap();
+            const QString title = suggestion.value(QStringLiteral("title")).toString();
+            const QString address = suggestion.value(QStringLiteral("address")).toString();
+            auto *item = new QListWidgetItem(
+                address.isEmpty() ? title : QStringLiteral("%1\n%2").arg(title, address));
+            item->setData(Qt::UserRole, suggestion);
+            m_suggestionList->addItem(item);
+        }
+        WidgetUtil::showSuggestionPopup(m_suggestionList, m_addressEdit);
+    });
+    connect(m_mapService, &MapService::suggestionsFailed, this,
+            [this](const QString &message) {
+        m_suggestionList->clear();
+        auto *item = new QListWidgetItem(message);
+        item->setFlags(Qt::NoItemFlags);
+        m_suggestionList->addItem(item);
+        WidgetUtil::showSuggestionPopup(m_suggestionList, m_addressEdit);
+    });
 
     // 数据变更(管理员新增电站 / 充电进度变化) → 自动刷新
     if (DataSource *ds = AppContext::instance()->dataSource()) {
@@ -81,8 +142,8 @@ void StationListPage::refresh()
     if (!ds)
         return;
 
-    const double myLat = m_regionCombo->itemData(m_regionCombo->currentIndex(), Qt::UserRole).toDouble();
-    const double myLng = m_regionCombo->itemData(m_regionCombo->currentIndex(), Qt::UserRole + 1).toDouble();
+    const double myLat = m_currentLat;
+    const double myLng = m_currentLng;
 
     const QueryResult stations = ds->query(QStringLiteral("charging_stations"));
     if (stations.isEmpty()) {
@@ -161,6 +222,46 @@ void StationListPage::refresh()
         item->setData(Qt::UserRole, r.station.value(QStringLiteral("id")).toLongLong());
         m_stationList->addItem(item);
     }
+}
+
+QString StationListPage::currentLocationName() const
+{
+    const QString address = m_addressEdit->text().trimmed();
+    return address.isEmpty() ? m_regionCombo->currentText() : address;
+}
+
+void StationListPage::onRegionChanged()
+{
+    const int index = m_regionCombo->currentIndex();
+    m_currentLat = m_regionCombo->itemData(index, Qt::UserRole).toDouble();
+    m_currentLng = m_regionCombo->itemData(index, Qt::UserRole + 1).toDouble();
+    m_locationStatusLabel->setText(
+        QStringLiteral("当前位置：%1").arg(m_regionCombo->currentText()));
+    refresh();
+}
+
+void StationListPage::requestSuggestions()
+{
+    m_mapService->suggest(m_addressEdit->text());
+}
+
+void StationListPage::useSelectedSuggestion()
+{
+    QListWidgetItem *item = m_suggestionList->currentItem();
+    if (!item || !(item->flags() & Qt::ItemIsEnabled))
+        return;
+    const QVariantMap suggestion = item->data(Qt::UserRole).toMap();
+    m_currentLat = suggestion.value(QStringLiteral("lat")).toDouble();
+    m_currentLng = suggestion.value(QStringLiteral("lng")).toDouble();
+    const QString title = suggestion.value(QStringLiteral("title")).toString();
+    m_addressEdit->setText(title);
+    m_locationStatusLabel->setText(
+        QStringLiteral("当前位置：%1（%2, %3）")
+            .arg(title)
+            .arg(m_currentLat, 0, 'f', 6)
+            .arg(m_currentLng, 0, 'f', 6));
+    m_suggestionList->hide();
+    refresh();
 }
 
 void StationListPage::onItemClicked()

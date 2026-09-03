@@ -9,6 +9,7 @@ build-*/
 *.user
 CMakeLists.txt.user*
 .qtcreator/
+map.ini
 
 # ===== Qt 自动生成 =====
 *_autogen/

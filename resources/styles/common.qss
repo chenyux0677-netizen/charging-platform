@@ -130,6 +130,14 @@ QListWidget::item:selected {
     color: #1f2a44;
 }
 
+/* 地点搜索候选：页面内悬浮，不能继承普通列表的透明背景 */
+#suggestionList, #stationLocationSuggestionList {
+    background: #ffffff;
+    border: 1px solid #cfd7e3;
+    border-radius: 6px;
+    padding: 3px;
+}
+
 /* ---------- 表格(管理员端为主) ---------- */
 QTableWidget {
     background: #ffffff;

@@ -32,6 +32,8 @@ private:
     void startCharging();
     void stopCharging();
     void onTick();
+    // 每拍把当前充电进度上报服务器(心跳),让管理员端实时看到;失败静默
+    void reportChargingProgress();
     bool findUnfinishedOrder() const;
 
     QLabel *m_pileLabel = nullptr;
@@ -49,6 +51,7 @@ private:
     qlonglong m_orderId = 0;
     int m_minutes = 0;
     bool m_charging = false;
+    bool m_progressBusy = false; // 心跳上报进行中,防 onTick 重入产生嵌套阻塞请求
 };
 
 #endif // CHARGINGPAGE_H

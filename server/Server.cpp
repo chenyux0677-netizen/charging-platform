@@ -289,6 +289,16 @@ void Server::handleMessage(QTcpSocket *client, const QJsonObject &msg)
             resp.insert(QStringLiteral("error"),
                         QStringLiteral("该电站包含使用中或已有订单记录的充电桩,不能删除"));
         }
+    } else if (op == QStringLiteral("updateChargingProgress")) {
+        // 充电中的客户端周期上报:推进 orders 的实时进度(duration_min/energy/amount)。
+        // ok 恒为 true,data 携带是否真实推进——订单刚被结算/不存在时返回 false 属正常
+        // 心跳结果,走 ok=false 会让客户端每拍打一条告警日志。
+        const QHash<QString, QVariant> values =
+            Protocol::jsonToValues(msg.value(QStringLiteral("values")).toObject());
+        const bool progressed = m_ds->updateChargingProgress(
+            values.value(QStringLiteral("orderId")).toLongLong());
+        resp.insert(QStringLiteral("ok"), QJsonValue(true));
+        resp.insert(QStringLiteral("data"), QJsonValue(progressed));
     } else {
         resp.insert(QStringLiteral("ok"), QJsonValue(false));
         resp.insert(QStringLiteral("error"), QStringLiteral("unknown op: ") + op);

@@ -11,6 +11,17 @@
 namespace {
 // 本机唯一的命名连接,避免重复注册报警
 const QString kConnName = QStringLiteral("charging_local");
+
+// 折算口径唯一出处:结算(settleCharge)与充电中实时进度(updateChargingProgress)共用,
+// 避免两处各自实现导致口径漂移。演示口径 1 秒 = 1 分钟:
+// minutes = 开始时间到现在经过的秒数(下限 1),energy = 功率×时长/60,amount = 电量×单价。
+void computeChargeMetrics(const QDateTime &start, double powerKw, double pricePerKwh,
+                          qlonglong &minutes, double &energy, double &amount)
+{
+    minutes = qMax<qlonglong>(1, start.secsTo(QDateTime::currentDateTime()));
+    energy = powerKw * minutes / 60.0;
+    amount = energy * pricePerKwh;
+}
 }
 
 LocalDataSource::LocalDataSource(QObject *parent)
@@ -420,19 +431,21 @@ bool LocalDataSource::settleCharge(qlonglong orderId)
         m_db.rollback();
         return false;
     }
-    // 演示口径 1 秒 = 1 分钟:时长由服务器按"开始时间 → 当前时间"计算
-    const qlonglong minutes = qMax<qlonglong>(
-        1, start.secsTo(QDateTime::currentDateTime()));
-    const double energy = pile.value(0).toDouble() * minutes / 60.0;
-    const double amount = energy * pile.value(1).toDouble();
+    // 演示口径 1 秒 = 1 分钟:时长由服务器按"开始时间 → 当前时间"折算(与实时进度同口径)
+    qlonglong minutes = 0;
+    double energy = 0.0;
+    double amount = 0.0;
+    computeChargeMetrics(start, pile.value(0).toDouble(), pile.value(1).toDouble(),
+                         minutes, energy, amount);
     const QString now = QDateTime::currentDateTime().toString(Qt::ISODate);
 
-    // status 条件保证同一订单只会被成功结算一次。
+    // status 条件保证同一订单只会被成功结算一次;同时把最终时长落库(duration_min)。
     QSqlQuery finish(m_db);
     finish.prepare(QStringLiteral(
-        "UPDATE orders SET end_time = ?, energy_kwh = ?, amount = ?, status = '已完成' "
-        "WHERE id = ? AND status = '充电中'"));
+        "UPDATE orders SET end_time = ?, duration_min = ?, energy_kwh = ?, "
+        "amount = ?, status = '已完成' WHERE id = ? AND status = '充电中'"));
     finish.addBindValue(now);
+    finish.addBindValue(minutes);
     finish.addBindValue(energy);
     finish.addBindValue(amount);
     finish.addBindValue(orderId);
@@ -478,6 +491,51 @@ bool LocalDataSource::settleCharge(qlonglong orderId)
                    .arg(minutes)
                    .arg(energy, 0, 'f', 2)
                    .arg(amount, 0, 'f', 2);
+    return true;
+}
+
+bool LocalDataSource::updateChargingProgress(qlonglong orderId)
+{
+    if (!m_db.isOpen() || orderId <= 0)
+        return false;
+
+    // 只认"充电中"订单:已结算 / 不存在直接返回,不 emit。
+    QSqlQuery order(m_db);
+    order.prepare(QStringLiteral(
+        "SELECT pile_id, start_time FROM orders WHERE id = ? AND status = '充电中'"));
+    order.addBindValue(orderId);
+    if (!order.exec() || !order.next())
+        return false;
+    const qlonglong pileId = order.value(0).toLongLong();
+    const QDateTime start = QDateTime::fromString(order.value(1).toString(), Qt::ISODate);
+
+    QSqlQuery pile(m_db);
+    pile.prepare(QStringLiteral(
+        "SELECT power_kw, price_per_kwh FROM charging_piles WHERE id = ?"));
+    pile.addBindValue(pileId);
+    if (!pile.exec() || !pile.next() || !start.isValid())
+        return false;
+
+    qlonglong minutes = 0;
+    double energy = 0.0;
+    double amount = 0.0;
+    computeChargeMetrics(start, pile.value(0).toDouble(), pile.value(1).toDouble(),
+                         minutes, energy, amount);
+
+    // 单条 UPDATE 本身原子;WHERE status='充电中' 兜底并发/与结算交错:
+    // 订单若已被 settleCharge 置为"已完成",这里影响 0 行 → 返回 false,不覆盖终态。
+    QSqlQuery up(m_db);
+    up.prepare(QStringLiteral(
+        "UPDATE orders SET duration_min = ?, energy_kwh = ?, amount = ? "
+        "WHERE id = ? AND status = '充电中'"));
+    up.addBindValue(minutes);
+    up.addBindValue(energy);
+    up.addBindValue(amount);
+    up.addBindValue(orderId);
+    if (!up.exec() || up.numRowsAffected() != 1)
+        return false;
+
+    emit dataChanged(QStringLiteral("orders")); // Server 据此广播 → 管理员端实时刷新
     return true;
 }
 

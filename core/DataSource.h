@@ -54,6 +54,12 @@ public:
     // 余额不足则整单回滚并返回 false(订单保持"充电中",充值后可重试)。
     virtual bool settleCharge(qlonglong orderId) = 0;
 
+    // 推进"充电中"订单的实时进度(duration_min/energy_kwh/amount 折算到当前时刻)。
+    // 由充电中的客户端周期上报触发;服务端按 start_time→now 统一折算,口径与
+    // settleCharge 一致,仅用于实时展示——最终结算仍以 settleCharge 为准。
+    // 订单不存在 / 已结算 / 参数非法时返回 false。
+    virtual bool updateChargingProgress(qlonglong orderId) = 0;
+
     // 充值:只在用户状态正常时把余额加上 amount。
     virtual bool rechargeBalance(qlonglong userId, double amount) = 0;
 

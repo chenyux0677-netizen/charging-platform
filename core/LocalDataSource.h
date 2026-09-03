@@ -43,6 +43,7 @@ public:
     // ---- 业务级接口:在单事务内执行,见 DataSource.h 说明 ----
     qlonglong startCharge(qlonglong userId, qlonglong pileId) override;
     bool settleCharge(qlonglong orderId) override;
+    bool updateChargingProgress(qlonglong orderId) override;
     bool rechargeBalance(qlonglong userId, double amount) override;
     bool removeChargingPile(qlonglong pileId) override;
     bool removeChargingStation(qlonglong stationId) override;

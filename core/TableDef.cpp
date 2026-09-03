@@ -101,6 +101,9 @@ QVector<TableDef> allTableDefs()
         ColumnDef(QStringLiteral("end_time"),   QStringLiteral("TEXT")),
         ColumnDef(QStringLiteral("energy_kwh"), QStringLiteral("REAL"),    false, false, false, false, QStringLiteral("0")),
         ColumnDef(QStringLiteral("amount"),     QStringLiteral("REAL"),    false, false, false, false, QStringLiteral("0")),
+        // 本次充电实时进度(分钟):充电中由 updateChargingProgress 周期刷新,结算时落最终值。
+        // 字面量 DEFAULT 0 → 旧库可被 migrateMissingColumns 自动 ALTER 补列。
+        ColumnDef(QStringLiteral("duration_min"), QStringLiteral("INTEGER"), false, false, true, false, QStringLiteral("0")),
         ColumnDef(QStringLiteral("status"),     QStringLiteral("TEXT"),    false, false, false, false, QStringLiteral("'充电中'")),
     };
     orders.constraints = {

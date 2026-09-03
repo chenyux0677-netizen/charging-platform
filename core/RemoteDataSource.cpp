@@ -208,6 +208,17 @@ bool RemoteDataSource::settleCharge(qlonglong orderId)
     return data.isValid() && data.toBool();
 }
 
+bool RemoteDataSource::updateChargingProgress(qlonglong orderId)
+{
+    const quint32 reqId = ++m_nextReqId;
+    QHash<QString, QVariant> values;
+    values.insert(QStringLiteral("orderId"), orderId);
+    const QJsonObject request = Protocol::makeRequest(
+        reqId, QStringLiteral("updateChargingProgress"), QString(), {}, QString(), {}, values);
+    const QVariant data = sendRequestAndWait(request);
+    return data.isValid() && data.toBool();
+}
+
 bool RemoteDataSource::rechargeBalance(qlonglong userId, double amount)
 {
     const quint32 reqId = ++m_nextReqId;

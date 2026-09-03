@@ -155,6 +155,22 @@ void ChargingPage::onTick()
     m_energyLabel->setText(QStringLiteral("已充电量:%1 kWh").arg(energy, 0, 'f', 2));
     m_amountLabel->setText(QStringLiteral("费用:%1 元").arg(amount, 0, 'f', 2));
     m_timeLabel->setText(QStringLiteral("时长:%1 分钟").arg(m_minutes));
+    // 本地展示保持现状;把进度上报服务器,让管理员端实时看到本次充电
+    reportChargingProgress();
+}
+
+void ChargingPage::reportChargingProgress()
+{
+    if (!m_charging || m_orderId <= 0 || m_progressBusy)
+        return; // 防重入:阻塞上报期间嵌套事件循环会分发电量定时器,再次进入时直接跳过
+    DataSource *ds = AppContext::instance()->dataSource();
+    if (!ds)
+        return;
+    // 阻塞往返(本地回环亚毫秒)。结果忽略:服务器按 start_time 折算,订单已结算时
+    // 返回 false 属正常,不打断本地充电展示。
+    m_progressBusy = true;
+    ds->updateChargingProgress(m_orderId);
+    m_progressBusy = false;
 }
 
 void ChargingPage::stopCharging()

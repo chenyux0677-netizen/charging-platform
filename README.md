@@ -94,35 +94,9 @@ resources/  QSS 样式资源
 再安装编译工具及 WebEngine 运行库：
 
 ```bash
-sudo apt update
-sudo apt install build-essential cmake \
-  libnss3 libasound2 libxkbfile1 ca-certificates
+sudo apt install qt6-webengine-dev qt6-webengine-dev-tools libqt6webenginecore6-bin
 ```
-
-`libnss3`、`libasound2` 和 `libxkbfile1` 是 Qt WebEngine/Chromium 的运行依赖；`ca-certificates` 用于验证腾讯地图 HTTPS 接口证书。Qt Creator 中应选择 Qt 6.5.3 gcc_64 对应的 Kit，不要与系统 Qt 混用。
-
-#### 方案二：完全使用 Ubuntu 系统 Qt
-
-没有安装 Qt Online Installer 时，可以一次安装整个项目所需依赖：
-
-```bash
-sudo apt update
-sudo apt install build-essential cmake \
-  qt6-base-dev qt6-base-dev-tools libqt6sql6-sqlite \
-  libqt6charts6-dev qt6-webengine-dev \
-  libnss3 libasound2 libxkbfile1 ca-certificates
-```
-
-```
-
-### 2. 获取代码
-
-```bash
-git clone https://github.com/chenyux0677-netizen/charging-platform.git
-cd charging-platform
-```
-
-> 没有 git 就先 `sudo apt install git`。
+地图功能还需要一个map.ini文件，想获取该文件请联系项目开发者，或者自己配置api key
 
 ### 3. 编译
 

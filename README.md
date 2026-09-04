@@ -81,7 +81,7 @@ resources/  QSS 样式资源
 
 ### 1. 环境准备
 
-需要 Linux 图形环境；在 Windows 的 WSL2 中运行时需要启用 WSLg。项目当前使用 Qt Online Installer 安装的 **Qt 6.5.3 Desktop gcc_64**，建议其他开发者使用相同版本。
+需要 Linux 图形环境。项目当前使用 Qt Online Installer 安装的 **Qt 6.5.3 Desktop gcc_64**，建议其他开发者使用相同版本。
 
 安装Qt Charts：
 ```bash

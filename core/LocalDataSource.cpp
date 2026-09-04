@@ -365,10 +365,11 @@ qlonglong LocalDataSource::startCharge(qlonglong userId, qlonglong pileId)
         return -1;
     }
 
-    // 一个用户同时只能有一笔进行中订单。
+    // 一个用户只能有一笔尚未完成的订单，欠费时必须先支付。
     QSqlQuery active(m_db);
     active.prepare(QStringLiteral(
-        "SELECT 1 FROM orders WHERE user_id = ? AND status = '充电中' LIMIT 1"));
+        "SELECT 1 FROM orders WHERE user_id = ? "
+        "AND status IN ('充电中', '待支付') LIMIT 1"));
     active.addBindValue(userId);
     if (!active.exec() || active.next()) {
         m_db.rollback();
@@ -410,28 +411,27 @@ qlonglong LocalDataSource::startCharge(qlonglong userId, qlonglong pileId)
     return orderId;
 }
 
-bool LocalDataSource::settleCharge(qlonglong orderId)
+bool LocalDataSource::stopCharge(qlonglong orderId)
 {
     if (!m_db.isOpen() || orderId <= 0)
         return false;
     if (!m_db.transaction()) {
-        qWarning() << "[LocalDataSource] 结算事务启动失败:"
+        qWarning() << "[LocalDataSource] 停止充电事务启动失败:"
                    << m_db.lastError().text();
         return false;
     }
 
     QSqlQuery order(m_db);
     order.prepare(QStringLiteral(
-        "SELECT user_id, pile_id, start_time FROM orders "
+        "SELECT pile_id, start_time FROM orders "
         "WHERE id = ? AND status = '充电中'"));
     order.addBindValue(orderId);
     if (!order.exec() || !order.next()) {
         m_db.rollback();
         return false;
     }
-    const qlonglong userId = order.value(0).toLongLong();
-    const qlonglong pileId = order.value(1).toLongLong();
-    const QDateTime start = QDateTime::fromString(order.value(2).toString(), Qt::ISODate);
+    const qlonglong pileId = order.value(0).toLongLong();
+    const QDateTime start = QDateTime::fromString(order.value(1).toString(), Qt::ISODate);
 
     QSqlQuery pile(m_db);
     pile.prepare(QStringLiteral(
@@ -453,11 +453,11 @@ bool LocalDataSource::settleCharge(qlonglong orderId)
                          minutes, energy, amount);
     const QString now = QDateTime::currentDateTime().toString(Qt::ISODate);
 
-    // status 条件保证同一订单只会被成功结算一次。
+    // 先冻结用量和费用；余额不足不能撤销已经发生的停止操作。
     QSqlQuery finish(m_db);
     finish.prepare(QStringLiteral(
         "UPDATE orders SET end_time = ?, duration_min = ?, energy_kwh = ?, amount = ?, "
-        "status = '已完成' WHERE id = ? AND status = '充电中'"));
+        "status = '待支付' WHERE id = ? AND status = '充电中'"));
     finish.addBindValue(now);
     finish.addBindValue(minutes);
     finish.addBindValue(energy);
@@ -480,6 +480,37 @@ bool LocalDataSource::settleCharge(qlonglong orderId)
         return false;
     }
 
+    if (!m_db.commit()) {
+        qWarning() << "[LocalDataSource] 停止充电事务提交失败:" << m_db.lastError().text();
+        m_db.rollback();
+        return false;
+    }
+    emit dataChanged(QStringLiteral("orders"));
+    emit dataChanged(QStringLiteral("charging_piles"));
+    qInfo() << "[LocalDataSource] 订单" << orderId << "已停止，等待支付:"
+            << QStringLiteral("%1 分钟, %2 kWh, %3 元")
+                   .arg(minutes)
+                   .arg(energy, 0, 'f', 2)
+                   .arg(amount, 0, 'f', 2);
+    return true;
+}
+
+bool LocalDataSource::settleCharge(qlonglong orderId)
+{
+    if (!m_db.isOpen() || orderId <= 0 || !m_db.transaction())
+        return false;
+
+    QSqlQuery order(m_db);
+    order.prepare(QStringLiteral(
+        "SELECT user_id, amount FROM orders WHERE id = ? AND status = '待支付'"));
+    order.addBindValue(orderId);
+    if (!order.exec() || !order.next()) {
+        m_db.rollback();
+        return false;
+    }
+    const qlonglong userId = order.value(0).toLongLong();
+    const double amount = order.value(1).toDouble();
+
     QSqlQuery debit(m_db);
     debit.prepare(QStringLiteral(
         "UPDATE users SET balance = balance - ? WHERE id = ? AND balance >= ?"));
@@ -491,19 +522,22 @@ bool LocalDataSource::settleCharge(qlonglong orderId)
         return false;
     }
 
-    if (!m_db.commit()) {
-        qWarning() << "[LocalDataSource] 结算事务提交失败:" << m_db.lastError().text();
+    QSqlQuery complete(m_db);
+    complete.prepare(QStringLiteral(
+        "UPDATE orders SET status = '已完成' WHERE id = ? AND status = '待支付'"));
+    complete.addBindValue(orderId);
+    if (!complete.exec() || complete.numRowsAffected() != 1) {
         m_db.rollback();
         return false;
     }
+    if (!m_db.commit()) {
+        m_db.rollback();
+        return false;
+    }
+
     emit dataChanged(QStringLiteral("orders"));
-    emit dataChanged(QStringLiteral("charging_piles"));
     emit dataChanged(QStringLiteral("users"));
-    qInfo() << "[LocalDataSource] 订单" << orderId << "事务结算完成:"
-            << QStringLiteral("%1 分钟, %2 kWh, %3 元")
-                   .arg(minutes)
-                   .arg(energy, 0, 'f', 2)
-                   .arg(amount, 0, 'f', 2);
+    qInfo() << "[LocalDataSource] 订单" << orderId << "支付完成:" << amount << "元";
     return true;
 }
 

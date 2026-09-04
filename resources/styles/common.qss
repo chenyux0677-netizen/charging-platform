@@ -30,6 +30,10 @@ QLineEdit, QComboBox {
     selection-background-color: #4a6cf7;
     selection-color: #ffffff;
 }
+QComboBox {
+    /* 使用列表式下拉，不让当前选中项与输入框对齐后向上展开 */
+    combobox-popup: 0;
+}
 QLineEdit:hover, QComboBox:hover {
     border-color: #b9c4d6;
 }

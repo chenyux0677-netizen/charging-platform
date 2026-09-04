@@ -7,7 +7,7 @@ class QListWidget;
 class QPushButton;
 
 // 用户端 · 我的订单页:当前用户的充电订单列表。
-// 选中"充电中"的订单时可结算(结算逻辑与充电页共用 ChargeService)。
+// “充电中”订单可结束并支付，“待支付”订单可在充值后继续支付。
 class OrderPage : public QWidget
 {
     Q_OBJECT

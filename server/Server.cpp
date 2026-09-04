@@ -333,7 +333,7 @@ void Server::handleMessage(QTcpSocket *client, const QJsonObject &msg)
                 resp.insert(QStringLiteral("data"), QJsonValue(id));
             else
                 resp.insert(QStringLiteral("error"),
-                            QStringLiteral("用户已有进行中订单或充电桩不可用"));
+                            QStringLiteral("用户有尚未完成的订单或充电桩不可用"));
         } else if (op == QStringLiteral("updateChargingProgress")) {
             const qlonglong orderId =
                 values().value(QStringLiteral("orderId")).toLongLong();
@@ -345,20 +345,34 @@ void Server::handleMessage(QTcpSocket *client, const QJsonObject &msg)
                             && m_ds->updateChargingProgress(orderId);
             resp.insert(QStringLiteral("ok"), true);
             resp.insert(QStringLiteral("data"), ok);
+        } else if (op == QStringLiteral("stopCharge")) {
+            const qlonglong orderId =
+                values().value(QStringLiteral("orderId")).toLongLong();
+            const QueryResult ownOrder = m_ds->query(
+                QStringLiteral("orders"), {QStringLiteral("id")},
+                QStringLiteral("id = ? AND user_id = ? AND status = '充电中'"),
+                {orderId, session.userId});
+            const bool ok = !ownOrder.isEmpty() && m_ds->stopCharge(orderId);
+            resp.insert(QStringLiteral("ok"), ok);
+            if (ok)
+                resp.insert(QStringLiteral("data"), true);
+            else
+                resp.insert(QStringLiteral("error"), QStringLiteral("订单无法停止"));
         } else if (op == QStringLiteral("settleCharge")) {
             const auto requestValues = values();
             const qlonglong orderId =
                 requestValues.value(QStringLiteral("orderId")).toLongLong();
             const QueryResult ownOrder = m_ds->query(
                 QStringLiteral("orders"), {QStringLiteral("id")},
-                QStringLiteral("id = ? AND user_id = ?"), {orderId, session.userId});
+                QStringLiteral("id = ? AND user_id = ? AND status = '待支付'"),
+                {orderId, session.userId});
             const bool ok = !ownOrder.isEmpty() && m_ds->settleCharge(orderId);
             resp.insert(QStringLiteral("ok"), ok);
             if (ok)
                 resp.insert(QStringLiteral("data"), true);
             else
                 resp.insert(QStringLiteral("error"),
-                            QStringLiteral("订单不存在、不属于当前用户、已结算或余额不足"));
+                            QStringLiteral("订单不存在、不属于当前用户、非待支付状态或余额不足"));
         } else {
             setError(QStringLiteral("用户无权执行该操作"));
         }
@@ -369,6 +383,7 @@ void Server::handleMessage(QTcpSocket *client, const QJsonObject &msg)
     // 管理员只管理业务数据。账号凭据不通过通用接口暴露，充电/结算只属于用户会话。
     if (op == QStringLiteral("startCharge")
         || op == QStringLiteral("updateChargingProgress")
+        || op == QStringLiteral("stopCharge")
         || op == QStringLiteral("settleCharge")
         || op == QStringLiteral("rechargeBalance")) {
         setError(QStringLiteral("管理员无权执行用户业务"));

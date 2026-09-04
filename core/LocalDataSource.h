@@ -39,6 +39,7 @@ public:
     bool rechargeBalance(qlonglong userId, double amount) override;
     qlonglong startCharge(qlonglong userId, qlonglong pileId) override;
     bool updateChargingProgress(qlonglong orderId) override;
+    bool stopCharge(qlonglong orderId) override;
     bool settleCharge(qlonglong orderId) override;
     bool removeChargingPile(qlonglong pileId) override;
     bool removeChargingStation(qlonglong stationId) override;

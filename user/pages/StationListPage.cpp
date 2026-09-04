@@ -5,6 +5,7 @@
 #include "user/services/MapService.h"
 
 #include <QComboBox>
+#include <QHBoxLayout>
 #include <QLabel>
 #include <QLineEdit>
 #include <QListWidget>
@@ -29,6 +30,49 @@ double distanceKm(double lat1, double lng1, double lat2, double lng2)
           * qSin(dLng / 2.0) * qSin(dLng / 2.0);
     const double c = 2.0 * qAtan2(qSqrt(a), qSqrt(1.0 - a));
     return kEarthRadiusKm * c;
+}
+
+QWidget *makeStationCard(const DataRow &station, int total, int free,
+                         const QString &price, double distance)
+{
+    auto *card = new QWidget;
+    card->setAttribute(Qt::WA_TransparentForMouseEvents);
+
+    auto *name = new QLabel(station.value(QStringLiteral("name")).toString(), card);
+    name->setObjectName(QStringLiteral("stationCardName"));
+    auto *distanceLabel = new QLabel(
+        QStringLiteral("%1 km").arg(distance, 0, 'f', 1), card);
+    distanceLabel->setObjectName(QStringLiteral("stationDistanceLabel"));
+
+    auto *header = new QHBoxLayout;
+    header->setContentsMargins(0, 0, 0, 0);
+    header->addWidget(name, 1);
+    header->addWidget(distanceLabel);
+
+    auto *address = new QLabel(station.value(QStringLiteral("address")).toString(), card);
+    address->setObjectName(QStringLiteral("stationCardAddress"));
+
+    auto *availability = new QLabel(
+        QStringLiteral("%1 空闲 / %2 个").arg(free).arg(total), card);
+    availability->setObjectName(free > 0
+                                    ? QStringLiteral("stationAvailableLabel")
+                                    : QStringLiteral("stationUnavailableLabel"));
+    auto *priceLabel = new QLabel(price, card);
+    priceLabel->setObjectName(QStringLiteral("stationPriceLabel"));
+
+    auto *summary = new QHBoxLayout;
+    summary->setContentsMargins(0, 0, 0, 0);
+    summary->addWidget(availability);
+    summary->addStretch(1);
+    summary->addWidget(priceLabel);
+
+    auto *layout = new QVBoxLayout(card);
+    layout->setContentsMargins(2, 2, 2, 2);
+    layout->setSpacing(5);
+    layout->addLayout(header);
+    layout->addWidget(address);
+    layout->addLayout(summary);
+    return card;
 }
 
 } // namespace
@@ -212,15 +256,12 @@ void StationListPage::refresh()
                       .arg(r.minPrice, 0, 'f', 2)
                       .arg(r.maxPrice, 0, 'f', 2);
         }
-        const QString text = QStringLiteral("%1\n价格:%2  电桩:%3 总/%4 空闲  距离:%5 km")
-            .arg(r.station.value(QStringLiteral("name")).toString())
-            .arg(priceText)
-            .arg(r.total)
-            .arg(r.free)
-            .arg(r.dist, 0, 'f', 1);
-        auto *item = new QListWidgetItem(text);
+        auto *item = new QListWidgetItem;
         item->setData(Qt::UserRole, r.station.value(QStringLiteral("id")).toLongLong());
+        item->setSizeHint(QSize(0, 98));
         m_stationList->addItem(item);
+        m_stationList->setItemWidget(
+            item, makeStationCard(r.station, r.total, r.free, priceText, r.dist));
     }
 }
 

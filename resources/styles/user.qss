@@ -62,6 +62,92 @@ UserMainWindow #pageTitleLabel {
     background: #e6f8f0;
 }
 
+/* 电站卡片 */
+#stationCardName, #pileCardCode {
+    color: #1f2a44;
+    font-size: 15px;
+    font-weight: 700;
+}
+#stationDistanceLabel {
+    color: #087f5b;
+    background: #dff7ec;
+    border-radius: 8px;
+    padding: 2px 7px;
+    font-size: 11px;
+}
+#stationCardAddress, #pileSpecLabel {
+    color: #718096;
+    font-size: 12px;
+}
+#stationAvailableLabel {
+    color: #087f5b;
+    font-size: 12px;
+    font-weight: 600;
+}
+#stationUnavailableLabel {
+    color: #94a3b8;
+    font-size: 12px;
+}
+#stationPriceLabel, #pileCardPrice {
+    color: #1f2a44;
+    font-size: 13px;
+    font-weight: 700;
+}
+
+/* 电桩可用状态 */
+#pileStatusFree, #pileStatusBusy, #pileStatusFault {
+    border-radius: 8px;
+    padding: 2px 7px;
+    font-size: 11px;
+    font-weight: 600;
+}
+#pileStatusFree {
+    color: #087f5b;
+    background: #dff7ec;
+}
+#pileStatusBusy {
+    color: #b45309;
+    background: #fff1cc;
+}
+#pileStatusFault {
+    color: #c24146;
+    background: #ffe4e6;
+}
+
+/* 订单卡片：窄屏分行展示，金额固定在右侧，不使用横向长文本。 */
+#orderNumberLabel {
+    color: #1f2a44;
+    font-size: 14px;
+    font-weight: 700;
+}
+#orderMetaLabel, #orderUsageLabel {
+    color: #718096;
+    font-size: 12px;
+}
+#orderCardAmountLabel {
+    color: #1f2a44;
+    font-size: 15px;
+    font-weight: 700;
+}
+#orderStatusCharging, #orderStatusPending, #orderStatusCompleted {
+    border-radius: 8px;
+    padding: 2px 7px;
+    font-size: 11px;
+    font-weight: 600;
+}
+#orderStatusCharging {
+    color: #087f5b;
+    background: #dff7ec;
+}
+#orderStatusPending {
+    color: #b45309;
+    background: #fff1cc;
+}
+#orderStatusCompleted {
+    color: #64748b;
+    background: #edf1f5;
+}
+
 /* ---------- 电站详情页 ---------- */
 #backButton {
     background: transparent;

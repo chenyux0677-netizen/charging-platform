@@ -22,7 +22,7 @@ private:
     void onRecharge();
     void onChangeNickname();
     void onAvatarClicked();
-    void reloadUser();
+    void updateDisplay();
 
     QPushButton *m_avatarBtn = nullptr;
     QLabel *m_nicknameLabel = nullptr;

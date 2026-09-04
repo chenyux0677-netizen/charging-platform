@@ -107,11 +107,11 @@ QVector<TableDef> allTableDefs()
         QStringLiteral("CHECK (energy_kwh >= 0)"),
         QStringLiteral("CHECK (amount >= 0)"),
         QStringLiteral("CHECK (duration_min >= 0)"),
-        QStringLiteral("CHECK (status IN ('充电中', '已完成'))")
+        QStringLiteral("CHECK (status IN ('充电中', '待支付', '已完成'))")
     };
     orders.indexes = {
         QStringLiteral("CREATE UNIQUE INDEX IF NOT EXISTS idx_orders_active_user "
-                       "ON orders(user_id) WHERE status = '充电中'"),
+                       "ON orders(user_id) WHERE status IN ('充电中', '待支付')"),
         QStringLiteral("CREATE UNIQUE INDEX IF NOT EXISTS idx_orders_active_pile "
                        "ON orders(pile_id) WHERE status = '充电中'")
     };

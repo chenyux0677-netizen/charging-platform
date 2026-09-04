@@ -2,11 +2,59 @@
 
 #include "common/AppContext.h"
 
+#include <QHBoxLayout>
 #include <QLabel>
 #include <QListWidget>
 #include <QMessageBox>
 #include <QPushButton>
 #include <QVBoxLayout>
+
+namespace {
+QWidget *makePileCard(const DataRow &pile)
+{
+    auto *card = new QWidget;
+    card->setAttribute(Qt::WA_TransparentForMouseEvents);
+
+    auto *code = new QLabel(pile.value(QStringLiteral("code")).toString(), card);
+    code->setObjectName(QStringLiteral("pileCardCode"));
+    const QString status = pile.value(QStringLiteral("status")).toString();
+    auto *statusLabel = new QLabel(status, card);
+    statusLabel->setObjectName(status == QStringLiteral("空闲")
+                                   ? QStringLiteral("pileStatusFree")
+                                   : status == QStringLiteral("使用中")
+                                       ? QStringLiteral("pileStatusBusy")
+                                       : QStringLiteral("pileStatusFault"));
+
+    auto *header = new QHBoxLayout;
+    header->setContentsMargins(0, 0, 0, 0);
+    header->addWidget(code);
+    header->addStretch(1);
+    header->addWidget(statusLabel);
+
+    auto *spec = new QLabel(
+        QStringLiteral("%1  ·  %2 kW")
+            .arg(pile.value(QStringLiteral("type")).toString())
+            .arg(pile.value(QStringLiteral("power_kw")).toDouble(), 0, 'f', 0), card);
+    spec->setObjectName(QStringLiteral("pileSpecLabel"));
+    auto *price = new QLabel(
+        QStringLiteral("¥ %1 / 度")
+            .arg(pile.value(QStringLiteral("price_per_kwh")).toDouble(), 0, 'f', 2), card);
+    price->setObjectName(QStringLiteral("pileCardPrice"));
+
+    auto *summary = new QHBoxLayout;
+    summary->setContentsMargins(0, 0, 0, 0);
+    summary->addWidget(spec);
+    summary->addStretch(1);
+    summary->addWidget(price);
+
+    auto *layout = new QVBoxLayout(card);
+    layout->setContentsMargins(2, 2, 2, 2);
+    layout->setSpacing(7);
+    layout->addLayout(header);
+    layout->addLayout(summary);
+    return card;
+}
+} // namespace
 
 StationDetailPage::StationDetailPage(QWidget *parent)
     : QWidget(parent)
@@ -82,15 +130,12 @@ void StationDetailPage::refreshPiles()
         return;
     }
     for (const DataRow &p : piles) {
-        const QString text = QStringLiteral("%1  |  %2  |  %3 kW  |  %4")
-            .arg(p.value(QStringLiteral("code")).toString())
-            .arg(p.value(QStringLiteral("type")).toString())
-            .arg(p.value(QStringLiteral("power_kw")).toDouble(), 0, 'f', 0)
-            .arg(p.value(QStringLiteral("status")).toString());
-        auto *item = new QListWidgetItem(text);
+        auto *item = new QListWidgetItem;
         item->setData(Qt::UserRole, p.value(QStringLiteral("id")).toLongLong());
         item->setData(Qt::UserRole + 1, p.value(QStringLiteral("status")).toString());
+        item->setSizeHint(QSize(0, 78));
         m_pileList->addItem(item);
+        m_pileList->setItemWidget(item, makePileCard(p));
     }
 }
 

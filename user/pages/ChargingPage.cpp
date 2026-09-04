@@ -42,7 +42,7 @@ ChargingPage::ChargingPage(QWidget *parent)
     m_startChargeBtn->setObjectName(QStringLiteral("startChargeBtn"));
     m_startChargeBtn->setEnabled(false);
 
-    m_stopChargeBtn = new QPushButton(QStringLiteral("结束充电"), this);
+    m_stopChargeBtn = new QPushButton(QStringLiteral("结束并结算"), this);
     m_stopChargeBtn->setObjectName(QStringLiteral("stopChargeBtn"));
     m_stopChargeBtn->setEnabled(false);
 
@@ -66,6 +66,27 @@ ChargingPage::ChargingPage(QWidget *parent)
 
     connect(m_startChargeBtn, &QPushButton::clicked, this, &ChargingPage::startCharging);
     connect(m_stopChargeBtn, &QPushButton::clicked, this, &ChargingPage::stopCharging);
+    resetPage();
+}
+
+void ChargingPage::resetPage()
+{
+    m_timer->stop();
+    m_pile.clear();
+    m_power = 0.0;
+    m_price = 0.0;
+    m_orderId = 0;
+    m_minutes = 0;
+    m_charging = false;
+    m_progressBusy = false;
+
+    m_pileLabel->setText(QStringLiteral("尚未选择充电桩"));
+    m_priceLabel->setText(QStringLiteral("单价:--"));
+    m_energyLabel->setText(QStringLiteral("已充电量:0.00 kWh"));
+    m_amountLabel->setText(QStringLiteral("费用:0.00 元"));
+    m_timeLabel->setText(QStringLiteral("时长:0 分钟"));
+    m_startChargeBtn->setEnabled(false);
+    m_stopChargeBtn->setEnabled(false);
 }
 
 void ChargingPage::setPile(const DataRow &pile)
@@ -91,9 +112,14 @@ bool ChargingPage::findUnfinishedOrder() const
     const qlonglong userId =
         AppContext::instance()->currentUser().value(QStringLiteral("id")).toLongLong();
     const QueryResult orders = ds->query(QStringLiteral("orders"), {},
-                                         QStringLiteral("user_id = ? AND status = '充电中'"),
+                                         QStringLiteral("user_id = ?"),
                                          QVariantList{userId});
-    return !orders.isEmpty();
+    for (const DataRow &order : orders) {
+        const QString status = order.value(QStringLiteral("status")).toString();
+        if (status == QStringLiteral("充电中") || status == QStringLiteral("待支付"))
+            return true;
+    }
+    return false;
 }
 
 void ChargingPage::onPageEntered()
@@ -131,7 +157,7 @@ void ChargingPage::startCharging()
     if (orderId <= 0) {
         QMessageBox::warning(this, QStringLiteral("提示"),
                              QStringLiteral("开始充电失败，该充电桩可能已被占用，"
-                                            "或当前账号已有进行中的订单。"));
+                                            "或当前账号有尚未完成的订单。"));
         return;
     }
 
@@ -175,17 +201,23 @@ void ChargingPage::stopCharging()
         return;
     m_timer->stop();
     DataSource *ds = AppContext::instance()->dataSource();
-    const bool ok = ds && ChargeService::settleOrder(ds, m_orderId);
-    m_charging = false;
-    m_orderId = 0;
-    m_startChargeBtn->setEnabled(!m_pile.isEmpty());
-    m_stopChargeBtn->setEnabled(false);
+    const bool stopped = ds && ChargeService::stopOrder(ds, m_orderId);
+    if (!stopped) {
+        m_timer->start();
+        QMessageBox::warning(this, QStringLiteral("停止失败"),
+                             QStringLiteral("停止充电失败，订单仍在充电，请稍后重试。"));
+        return;
+    }
 
-    if (ok)
-        QMessageBox::information(this, QStringLiteral("充电结束"),
-                                 QStringLiteral("充电已结束,结算明细请在订单页查看。"));
-    else
-        QMessageBox::warning(this, QStringLiteral("结算失败"),
-                             QStringLiteral("结算失败，可能余额不足；请充值后到订单页处理。"));
-    emit backToStations();
+    const bool paid = ChargeService::settleOrder(ds, m_orderId);
+    resetPage();
+
+    if (paid)
+        QMessageBox::information(this, QStringLiteral("结算完成"),
+                                 QStringLiteral("充电已结束并完成扣款，明细请在订单页查看。"));
+    else if (stopped)
+        QMessageBox::warning(this, QStringLiteral("等待支付"),
+                             QStringLiteral("充电已结束，但余额不足；费用已冻结，"
+                                            "请充值后到订单页支付。"));
+    emit goToOrders();
 }

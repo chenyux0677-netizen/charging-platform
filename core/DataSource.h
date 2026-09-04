@@ -59,8 +59,10 @@ public:
     // 按服务器时间更新进行中订单的时长、电量和费用，供管理端实时查看。
     virtual bool updateChargingProgress(qlonglong orderId) = 0;
 
-    // 原子完成订单、释放电桩、累计统计并扣减余额。
-    // 服务端按订单开始时间计算模拟时长（现实 1 秒 = 模拟 1 分钟）。
+    // 停止充电：冻结费用、释放电桩并转为“待支付”，不因余额不足回滚。
+    virtual bool stopCharge(qlonglong orderId) = 0;
+
+    // 支付一笔“待支付”订单，只扣减已冻结的金额并标记“已完成”。
     virtual bool settleCharge(qlonglong orderId) = 0;
 
     // 管理端安全删除：有关联订单或正在使用时拒绝，避免产生孤儿数据。

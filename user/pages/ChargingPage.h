@@ -26,13 +26,13 @@ public:
 
 signals:
     void goToOrders();
-    void backToStations();
 
 private:
     void startCharging();
     void stopCharging();
     void onTick();
     void reportChargingProgress();
+    void resetPage();
     bool findUnfinishedOrder() const;
 
     QLabel *m_pileLabel = nullptr;

@@ -60,7 +60,7 @@ ProfilePage::ProfilePage(QWidget *parent)
     connect(m_logoutBtn, &QPushButton::clicked, this, &ProfilePage::logoutRequested);
 }
 
-void ProfilePage::reloadUser()
+void ProfilePage::refresh()
 {
     DataSource *ds = AppContext::instance()->dataSource();
     if (!ds)
@@ -71,11 +71,11 @@ void ProfilePage::reloadUser()
                                        QStringLiteral("id = ?"), QVariantList{id});
     if (!rows.isEmpty()) {
         AppContext::instance()->setCurrentUser(rows.first());
-        refresh();
+        updateDisplay();
     }
 }
 
-void ProfilePage::refresh()
+void ProfilePage::updateDisplay()
 {
     const DataRow user = AppContext::instance()->currentUser();
     if (user.isEmpty())
@@ -116,7 +116,7 @@ void ProfilePage::onRecharge()
                              QStringLiteral("充值金额无效或账号不可用。"));
         return;
     }
-    reloadUser();
+    refresh();
     QMessageBox::information(this, QStringLiteral("充值成功"),
                              QStringLiteral("已充值 %1 元。").arg(amount, 0, 'f', 2));
 }
@@ -141,7 +141,7 @@ void ProfilePage::onChangeNickname()
     up.insert(QStringLiteral("nickname"), name.trimmed());
     ds->updateRows(QStringLiteral("users"), up,
                    QStringLiteral("id = ?"), QVariantList{id});
-    reloadUser();
+    refresh();
 }
 
 void ProfilePage::onAvatarClicked()
@@ -161,5 +161,5 @@ void ProfilePage::onAvatarClicked()
     up.insert(QStringLiteral("avatar"), path);
     ds->updateRows(QStringLiteral("users"), up,
                    QStringLiteral("id = ?"), QVariantList{id});
-    reloadUser();
+    refresh();
 }

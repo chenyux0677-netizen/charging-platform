@@ -295,6 +295,10 @@ void GuiFlowTest::chargeFlow()
     QListWidget *stationList = find<QListWidget>(&mainWin, "stationList");
     QVERIFY(stationList);
     QVERIFY(stationList->count() > 0);
+    QWidget *stationCard = stationList->itemWidget(stationList->item(0));
+    QVERIFY(stationCard);
+    QVERIFY(find<QLabel>(stationCard, "stationCardName"));
+    QVERIFY(find<QLabel>(stationCard, "stationPriceLabel"));
     QTest::mouseClick(stationList->viewport(), Qt::LeftButton, Qt::NoModifier,
                       stationList->visualItemRect(stationList->item(0)).center());
     QCOMPARE(stack->currentIndex(), 1);
@@ -303,6 +307,10 @@ void GuiFlowTest::chargeFlow()
     QListWidget *pileList = find<QListWidget>(&mainWin, "pileList");
     QVERIFY(pileList);
     QVERIFY(pileList->count() > 0);
+    QWidget *pileCard = pileList->itemWidget(pileList->item(0));
+    QVERIFY(pileCard);
+    QVERIFY(find<QLabel>(pileCard, "pileCardCode"));
+    QVERIFY(find<QLabel>(pileCard, "pileCardPrice"));
     QTest::mouseClick(pileList->viewport(), Qt::LeftButton, Qt::NoModifier,
                       pileList->visualItemRect(pileList->item(0)).center());
     QCOMPARE(stack->currentIndex(), 2);
@@ -310,7 +318,13 @@ void GuiFlowTest::chargeFlow()
     QPushButton *startBtn = find<QPushButton>(&mainWin, "startChargeBtn");
     QPushButton *stopBtn = find<QPushButton>(&mainWin, "stopChargeBtn");
     QLabel *energyLabel = find<QLabel>(&mainWin, "energyLabel");
-    QVERIFY(startBtn && stopBtn && energyLabel);
+    QLabel *pileLabel = find<QLabel>(&mainWin, "pileLabel");
+    QLabel *priceLabel = find<QLabel>(&mainWin, "priceLabel");
+    QLabel *amountLabel = find<QLabel>(&mainWin, "amountLabel");
+    QLabel *timeLabel = find<QLabel>(&mainWin, "timeLabel");
+    QVERIFY(startBtn && stopBtn && energyLabel && pileLabel && priceLabel
+            && amountLabel && timeLabel);
+    QCOMPARE(stopBtn->text(), QStringLiteral("结束并结算"));
     QVERIFY(startBtn->isEnabled()); // 无未完成订单,可开始
 
     // 开始充电
@@ -360,6 +374,22 @@ void GuiFlowTest::chargeFlow()
     // 结束充电 → 结算(提示框被守卫自动关掉)
     QTest::mouseClick(stopBtn, Qt::LeftButton);
     QTest::qWait(50);
+    QCOMPARE(stack->currentIndex(), 3); // 结束后进入订单页查看结算结果
+    QPushButton *navOrder = find<QPushButton>(&mainWin, "navOrderBtn");
+    QVERIFY(navOrder && navOrder->isChecked());
+    QListWidget *orderCards = find<QListWidget>(&mainWin, "orderList");
+    QVERIFY(orderCards && orderCards->count() == 1);
+    QWidget *orderCard = orderCards->itemWidget(orderCards->item(0));
+    QVERIFY(orderCard);
+    QLabel *cardAmount = find<QLabel>(orderCard, "orderCardAmountLabel");
+    QVERIFY(cardAmount && cardAmount->text().startsWith(QStringLiteral("¥ ")));
+    QCOMPARE(pileLabel->text(), QStringLiteral("尚未选择充电桩"));
+    QCOMPARE(priceLabel->text(), QStringLiteral("单价:--"));
+    QCOMPARE(energyLabel->text(), QStringLiteral("已充电量:0.00 kWh"));
+    QCOMPARE(amountLabel->text(), QStringLiteral("费用:0.00 元"));
+    QCOMPARE(timeLabel->text(), QStringLiteral("时长:0 分钟"));
+    QVERIFY(!startBtn->isEnabled());
+    QVERIFY(!stopBtn->isEnabled());
 
     const QueryResult done = ds->query(QStringLiteral("orders"), {},
         QStringLiteral("id = ?"), QVariantList{order.value(QStringLiteral("id")).toLongLong()});
@@ -379,6 +409,15 @@ void GuiFlowTest::chargeFlow()
     const QueryResult userAfter = ds->query(QStringLiteral("users"), {},
         QStringLiteral("id = ?"), QVariantList{userId});
     QVERIFY(userAfter.first().value(QStringLiteral("balance")).toDouble() < 100.0);
+
+    // 进入“我的”时必须从服务端刷新余额，不能继续显示登录时缓存的 100 元。
+    QPushButton *navProfile = find<QPushButton>(&mainWin, "navProfileBtn");
+    QLabel *balanceLabel = find<QLabel>(&mainWin, "balanceLabel");
+    QVERIFY(navProfile && balanceLabel);
+    QTest::mouseClick(navProfile, Qt::LeftButton);
+    QCOMPARE(balanceLabel->text(),
+             QStringLiteral("余额:%1 元")
+                 .arg(userAfter.first().value(QStringLiteral("balance")).toDouble(), 0, 'f', 2));
 
     // 同一订单重复结算必须失败，余额和桩累计值都不能再变化。
     const double balanceAfter = userAfter.first().value(QStringLiteral("balance")).toDouble();
@@ -430,12 +469,15 @@ void GuiFlowTest::unfinishedOrderCheck()
 
     // 点"充电"导航 → 有未完成订单 → 弹提示(守卫关掉) → 自动跳到订单页
     QPushButton *navCharge = find<QPushButton>(&mainWin, "navChargeBtn");
-    QVERIFY(navCharge);
+    QPushButton *navOrder = find<QPushButton>(&mainWin, "navOrderBtn");
+    QVERIFY(navCharge && navOrder);
     QTest::mouseClick(navCharge, Qt::LeftButton);
     QTest::qWait(50);
     QCOMPARE(stack->currentIndex(), 3); // 订单页
+    QVERIFY(navOrder->isChecked());
+    QVERIFY(!navCharge->isChecked());
 
-    // 订单列表里应能看到这条"充电中"订单,可结算
+    // 订单列表里应能看到这条“充电中”订单，可结束并支付。
     QListWidget *orderList = find<QListWidget>(&mainWin, "orderList");
     QPushButton *settleBtn = find<QPushButton>(&mainWin, "settleBtn");
     QVERIFY(orderList && settleBtn);
@@ -443,12 +485,34 @@ void GuiFlowTest::unfinishedOrderCheck()
     orderList->setCurrentRow(0);
     QVERIFY(settleBtn->isEnabled());
 
-    // 余额为 0 时结算失败，订单和电桩状态保持不变。
+    // 余额为 0：停止操作仍应提交并释放电桩，只有支付失败。
     QTest::mouseClick(settleBtn, Qt::LeftButton);
     QTest::qWait(50);
     QueryResult done = ds->query(QStringLiteral("orders"), {},
         QStringLiteral("id = ?"), QVariantList{orderId});
-    QCOMPARE(done.first().value(QStringLiteral("status")).toString(), QStringLiteral("充电中"));
+    QCOMPARE(done.first().value(QStringLiteral("status")).toString(), QStringLiteral("待支付"));
+    const qlonglong frozenMinutes =
+        done.first().value(QStringLiteral("duration_min")).toLongLong();
+    const double frozenAmount = done.first().value(QStringLiteral("amount")).toDouble();
+    QVERIFY(frozenMinutes >= 1);
+    QVERIFY(frozenAmount > 0.0);
+    const QueryResult releasedPile = ds->query(
+        QStringLiteral("charging_piles"), {}, QStringLiteral("id = ?"),
+        {done.first().value(QStringLiteral("pile_id"))});
+    QCOMPARE(releasedPile.first().value(QStringLiteral("status")).toString(),
+             QStringLiteral("空闲"));
+    const QueryResult unpaidUser = ds->query(
+        QStringLiteral("users"), {}, QStringLiteral("id = ?"), {userId});
+    QCOMPARE(unpaidUser.first().value(QStringLiteral("balance")).toDouble(), 0.0);
+
+    // 等待后金额不能继续增长；欠费订单也会阻止开启下一单。
+    QTest::qWait(1100);
+    done = ds->query(QStringLiteral("orders"), {}, QStringLiteral("id = ?"), {orderId});
+    QCOMPARE(done.first().value(QStringLiteral("duration_min")).toLongLong(), frozenMinutes);
+    QCOMPARE(done.first().value(QStringLiteral("amount")).toDouble(), frozenAmount);
+    QCOMPARE(ds->startCharge(userId,
+                             releasedPile.first().value(QStringLiteral("id")).toLongLong()),
+             -1LL);
 
     // 用户充值后即可重新结算。
     QVERIFY(ds->rechargeBalance(userId, 100.0));
@@ -509,6 +573,7 @@ void GuiFlowTest::crashRecovery()
         QCOMPARE(pile.first().value(QStringLiteral("status")).toString(),
                  QStringLiteral("使用中"));
 
+        QVERIFY(ds->stopCharge(orderId));
         QVERIFY(ds->settleCharge(orderId));
         const QueryResult done = ds->query(QStringLiteral("orders"), {},
                                            QStringLiteral("id = ?"), {orderId});

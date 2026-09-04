@@ -105,8 +105,6 @@ UserMainWindow::UserMainWindow(QWidget *parent)
             this, [this] { switchTo(1); });
     connect(m_chargingPage, &ChargingPage::goToOrders,
             this, [this] { switchTo(3); });
-    connect(m_chargingPage, &ChargingPage::backToStations,
-            this, [this] { switchTo(0); });
     connect(m_profilePage, &ProfilePage::logoutRequested,
             this, &UserMainWindow::logoutRequested);
 
@@ -117,6 +115,15 @@ void UserMainWindow::switchTo(int index)
 {
     m_stack->setCurrentIndex(index);
 
+    // 先同步底部导航。页面进入钩子可能再次触发 switchTo（例如存在未结算
+    // 订单时从充电页跳到订单页），后发生的跳转应保留最终选中态。
+    if (m_navButtons.size() == 4) {
+        m_navButtons[0]->setChecked(index == 0 || index == 1 || index == 5);
+        m_navButtons[1]->setChecked(index == 2);
+        m_navButtons[2]->setChecked(index == 3);
+        m_navButtons[3]->setChecked(index == 4);
+    }
+
     // 页面切换钩子
     switch (index) {
     case 0: m_stationListPage->refresh(); break;
@@ -124,13 +131,5 @@ void UserMainWindow::switchTo(int index)
     case 3: m_orderPage->refresh(); break;
     case 4: m_profilePage->refresh(); break;
     default: break;
-    }
-
-    // 底部导航选中态同步(详情页算"电站")
-    if (m_navButtons.size() == 4) {
-        m_navButtons[0]->setChecked(index == 0 || index == 1 || index == 5);
-        m_navButtons[1]->setChecked(index == 2);
-        m_navButtons[2]->setChecked(index == 3);
-        m_navButtons[3]->setChecked(index == 4);
     }
 }

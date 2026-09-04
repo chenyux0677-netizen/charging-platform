@@ -81,26 +81,70 @@ resources/  QSS 样式资源
 
 ### 1. 环境准备
 
-需要一台 **Linux** 机器(Ubuntu 22.04 / Debian 等),并安装:
+需要 Linux 图形环境；在 Windows 的 WSL2 中运行时需要启用 WSLg。项目当前使用 Qt Online Installer 安装的 **Qt 6.5.3 Desktop gcc_64**，建议其他开发者使用相同版本。
 
-| 软件 | 用途 | Ubuntu 安装命令 |
-|---|---|---|
-| C++ 编译器 | 编译 | `sudo apt install g++` |
-| CMake(≥3.5) | 构建 | `sudo apt install cmake` |
-| Qt 6 开发库 | 界面/数据库/网络/测试 | `sudo apt install qt6-base-dev libqt6sql6-sqlite qt6-base-dev-tools` |
-| Qt Charts | 销售统计图表 | `sudo apt install libqt6charts6-dev` |
-| Qt WebEngine | 腾讯地图页面 | `sudo apt install qt6-webengine-dev libnss3 libasound2 libxkbfile1` |
-| (可选) Qt Creator | 用 IDE 开发/运行 | `sudo apt install qtcreator` |
+#### 方案一：Qt Online Installer（当前项目采用）
 
-> 说明:`qt6-base-dev` 提供 Widgets / Sql / Network / Test 组件；`libqt6sql6-sqlite` 提供 SQLite 数据库驱动；地图页依赖 Qt WebEngine。腾讯地图 Key 放在运行目录的 `map.ini` 中，格式参考 `config/map.example.ini`，该文件不会提交到 Git。
+在 Qt Maintenance Tool 的 Qt 6.5.3 组件中确认已安装：
 
-验证安装是否就绪:
+- Desktop gcc 64-bit
+- Qt Charts
+- Qt WebEngine
+
+再安装编译工具及 WebEngine 运行库：
 
 ```bash
-g++ --version && cmake --version && qmake6 --version
+sudo apt update
+sudo apt install build-essential cmake \
+  libnss3 libasound2 libxkbfile1 ca-certificates
 ```
 
-(能打印出版本号即可。)
+`libnss3`、`libasound2` 和 `libxkbfile1` 是 Qt WebEngine/Chromium 的运行依赖；`ca-certificates` 用于验证腾讯地图 HTTPS 接口证书。Qt Creator 中应选择 Qt 6.5.3 gcc_64 对应的 Kit，不要与系统 Qt 混用。
+
+#### 方案二：完全使用 Ubuntu 系统 Qt
+
+没有安装 Qt Online Installer 时，可以一次安装整个项目所需依赖：
+
+```bash
+sudo apt update
+sudo apt install build-essential cmake \
+  qt6-base-dev qt6-base-dev-tools libqt6sql6-sqlite \
+  libqt6charts6-dev qt6-webengine-dev \
+  libnss3 libasound2 libxkbfile1 ca-certificates
+```
+
+#### 腾讯地图配置
+
+腾讯位置服务控制台中的 Key 需要开启：
+
+- WebService API（地点候选、地址解析、驾车和步行路线）
+- JavaScript API GL（地图、标记和路线折线）
+- 关键词提示、驾车路线和步行路线的可用调用额度
+
+在项目根目录或程序运行目录创建 `map.ini`：
+
+```ini
+[tencent]
+api_key=你的腾讯地图Key
+```
+
+格式也可参考 `config/map.example.ini`。真实 `map.ini` 已加入 `.gitignore`，不会提交到 Git。
+
+WSL 中可用以下命令检查 WSLg 图形环境：
+
+```bash
+echo "$DISPLAY"
+echo "$WAYLAND_DISPLAY"
+```
+
+至少应有一个变量输出内容。中文输入法属于 WSL 桌面输入配置，不是腾讯地图依赖。
+
+验证基础编译工具：
+
+```bash
+g++ --version
+cmake --version
+```
 
 ### 2. 获取代码
 
@@ -120,7 +164,7 @@ cmake -S . -B build          # 配置(生成构建文件到 build/ 目录)
 cmake --build build -j4      # 编译
 ```
 
-编译完成后,在 `build/` 目录下会得到 4 个可执行文件:
+编译完成后,在 `build/` 目录下会得到 6 个可执行文件:
 
 | 可执行文件 | 作用 |
 |---|---|
@@ -128,6 +172,8 @@ cmake --build build -j4      # 编译
 | `gui_flow_test` | 界面自检(登录、充电、权限与异常退出恢复,当前 9 用例全过) |
 | `net_selftest` | 通信自检(跨设备数据同步/广播) |
 | `db_selftest` | 数据库自检(建表/增删改查) |
+| `map_selftest` | 腾讯地图 WebService API 自检 |
+| `navigation_selftest` | WebEngine 地图与路线折线自检 |
 
 **第二种：Qt Creator 方式:**
 

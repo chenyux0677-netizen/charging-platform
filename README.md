@@ -83,15 +83,12 @@ resources/  QSS 样式资源
 
 需要 Linux 图形环境；在 Windows 的 WSL2 中运行时需要启用 WSLg。项目当前使用 Qt Online Installer 安装的 **Qt 6.5.3 Desktop gcc_64**，建议其他开发者使用相同版本。
 
-#### 方案一：Qt Online Installer（当前项目采用）
-
 在 Qt Maintenance Tool 的 Qt 6.5.3 组件中确认已安装：
 
 - Desktop gcc 64-bit
 - Qt Charts
-- Qt WebEngine
 
-再安装编译工具及 WebEngine 运行库：
+再安 WebEngine 运行库：
 
 ```bash
 sudo apt install qt6-webengine-dev qt6-webengine-dev-tools libqt6webenginecore6-bin

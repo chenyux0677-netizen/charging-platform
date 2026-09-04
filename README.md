@@ -95,7 +95,7 @@ sudo apt install qt6-webengine-dev qt6-webengine-dev-tools libqt6webenginecore6-
 ```
 地图功能还需要一个map.ini文件，想获取该文件请联系项目开发者，或者自己配置api key
 
-### 3. 编译
+### 2. 编译
 
 **第一种：命令行方式:**
 
@@ -121,7 +121,7 @@ cmake --build build -j4      # 编译
 2. 选一个构建套件(Kits),点左侧"项目"确认 CMake 配置无误
 3. 点击左下角 ▶ Run 运行,或 Build → 构建
 
-### 4. 运行演示
+### 3. 运行演示
 
 整个系统 = **服务器(含数据库)+ 管理员端 + 用户端**。演示时开**两个程序实例**来模拟"两台设备":
 

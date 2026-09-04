@@ -113,37 +113,6 @@ sudo apt install build-essential cmake \
   libnss3 libasound2 libxkbfile1 ca-certificates
 ```
 
-#### 腾讯地图配置
-
-腾讯位置服务控制台中的 Key 需要开启：
-
-- WebService API（地点候选、地址解析、驾车和步行路线）
-- JavaScript API GL（地图、标记和路线折线）
-- 关键词提示、驾车路线和步行路线的可用调用额度
-
-在项目根目录或程序运行目录创建 `map.ini`：
-
-```ini
-[tencent]
-api_key=你的腾讯地图Key
-```
-
-格式也可参考 `config/map.example.ini`。真实 `map.ini` 已加入 `.gitignore`，不会提交到 Git。
-
-WSL 中可用以下命令检查 WSLg 图形环境：
-
-```bash
-echo "$DISPLAY"
-echo "$WAYLAND_DISPLAY"
-```
-
-至少应有一个变量输出内容。中文输入法属于 WSL 桌面输入配置，不是腾讯地图依赖。
-
-验证基础编译工具：
-
-```bash
-g++ --version
-cmake --version
 ```
 
 ### 2. 获取代码

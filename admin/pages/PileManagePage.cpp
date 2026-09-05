@@ -298,6 +298,12 @@ void PileManagePage::onEdit()
                                        QStringLiteral("id = ?"), QVariantList{id});
     if (rows.isEmpty())
         return;
+    if (rows.first().value(QStringLiteral("status")).toString()
+        == QStringLiteral("使用中")) {
+        QMessageBox::warning(this, QStringLiteral("无法修改"),
+                             QStringLiteral("该电桩正在充电，结束充电后才能修改。"));
+        return;
+    }
 
     const QHash<QString, QVariant> values = editPileDialog(rows.first());
     if (values.isEmpty())
@@ -305,7 +311,7 @@ void PileManagePage::onEdit()
     if (ds->updateRows(QStringLiteral("charging_piles"), values,
                        QStringLiteral("id = ?"), QVariantList{id}) <= 0) {
         QMessageBox::warning(this, QStringLiteral("修改失败"),
-                             QStringLiteral("未能修改电桩，请检查桩号是否重复。"));
+                             QStringLiteral("未能修改电桩；它可能正在充电，或桩号已重复。"));
     }
 }
 
@@ -322,6 +328,12 @@ void PileManagePage::onRemove()
     if (id <= 0)
         return;
     const QString code = m_table->item(row, 1) ? m_table->item(row, 1)->text() : QString();
+    const QString status = m_table->item(row, 6) ? m_table->item(row, 6)->text() : QString();
+    if (status == QStringLiteral("使用中")) {
+        QMessageBox::warning(this, QStringLiteral("无法删除"),
+                             QStringLiteral("该电桩正在充电，结束充电后才能删除。"));
+        return;
+    }
 
     if (QMessageBox::question(this, QStringLiteral("删除电桩"),
                               QStringLiteral("确定删除充电桩「%1」吗?").arg(code))

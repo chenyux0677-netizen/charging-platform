@@ -5,8 +5,9 @@
 #include <QTableWidget>
 #include <QWidget>
 
-// 管理员端 · 充电桩状态页:全站电桩实时状态一览(只读),可按状态筛选
+// 管理员端 · 充电桩状态页:状态数量/占比汇总 + 实时明细(只读)
 class QComboBox;
+class QLabel;
 
 class PileStatusPage : public QWidget
 {
@@ -20,6 +21,10 @@ private slots:
 
 private:
     QComboBox *m_statusFilter = nullptr;
+    QLabel *m_totalValue = nullptr;
+    QLabel *m_freeValue = nullptr;
+    QLabel *m_busyValue = nullptr;
+    QLabel *m_faultValue = nullptr;
     QTableWidget *m_table = nullptr;
 };
 

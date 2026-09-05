@@ -6,6 +6,7 @@
 #include <QHBoxLayout>
 #include <QHeaderView>
 #include <QLabel>
+#include <QLineEdit>
 #include <QMessageBox>
 #include <QPushButton>
 #include <QTableWidgetItem>
@@ -28,6 +29,14 @@ UserManagePage::UserManagePage(QWidget *parent)
     m_statusFilter->addItem(QStringLiteral("正常"), kStatusNormal);
     m_statusFilter->addItem(QStringLiteral("冻结"), kStatusFrozen);
     filterRow->addWidget(m_statusFilter);
+
+    filterRow->addSpacing(16);
+    filterRow->addWidget(new QLabel(QStringLiteral("手机号搜索:"), this));
+    m_phoneSearch = new QLineEdit(this);
+    m_phoneSearch->setObjectName(QStringLiteral("phoneSearchEdit"));
+    m_phoneSearch->setPlaceholderText(QStringLiteral("输入手机号中的任意数字"));
+    m_phoneSearch->setClearButtonEnabled(true);
+    filterRow->addWidget(m_phoneSearch);
     filterRow->addStretch(1);
 
     m_table = new QTableWidget(this);
@@ -66,6 +75,8 @@ UserManagePage::UserManagePage(QWidget *parent)
     connect(m_unfreezeBtn, &QPushButton::clicked, this, &UserManagePage::onUnfreeze);
     connect(m_statusFilter, qOverload<int>(&QComboBox::currentIndexChanged),
             this, &UserManagePage::refresh);
+    connect(m_phoneSearch, &QLineEdit::textChanged,
+            this, &UserManagePage::refresh);
     connect(m_table, &QTableWidget::currentCellChanged,
             this, &UserManagePage::onSelectionChanged);
 
@@ -83,6 +94,7 @@ UserManagePage::UserManagePage(QWidget *parent)
 void UserManagePage::refresh()
 {
     const QString filter = m_statusFilter->currentData().toString();
+    const QString phoneKeyword = m_phoneSearch->text().trimmed();
 
     m_table->setRowCount(0);
     DataSource *ds = AppContext::instance()->dataSource();
@@ -95,6 +107,9 @@ void UserManagePage::refresh()
     for (const DataRow &u : users) {
         const QString status = u.value(QStringLiteral("status")).toString();
         if (!filter.isEmpty() && status != filter)
+            continue;
+        if (!phoneKeyword.isEmpty()
+            && !u.value(QStringLiteral("phone")).toString().contains(phoneKeyword))
             continue;
         rows << u;
     }

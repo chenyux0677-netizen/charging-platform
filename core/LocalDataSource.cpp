@@ -215,8 +215,24 @@ int LocalDataSource::updateRows(const QString &table,
     QStringList sets;
     for (auto it = values.cbegin(); it != values.cend(); ++it)
         sets << (it.key() + QStringLiteral(" = ?"));
+    QString protectedWhere = where;
+    // 管理端不能在充电过程中改变电桩参数或电站资料。将判断直接并入
+    // UPDATE，避免“先查询、后更新”之间状态发生变化。
+    if (table == QStringLiteral("charging_piles")) {
+        protectedWhere += QStringLiteral(
+            " AND status <> '使用中' "
+            "AND NOT EXISTS (SELECT 1 FROM orders o "
+            "WHERE o.pile_id = charging_piles.id AND o.status = '充电中')");
+    } else if (table == QStringLiteral("charging_stations")) {
+        protectedWhere += QStringLiteral(
+            " AND NOT EXISTS (SELECT 1 FROM charging_piles p "
+            "WHERE p.station_id = charging_stations.id "
+            "AND (p.status = '使用中' OR EXISTS "
+            "(SELECT 1 FROM orders o WHERE o.pile_id = p.id "
+            "AND o.status = '充电中')))");
+    }
     const QString sql = QStringLiteral("UPDATE %1 SET %2 WHERE %3")
-                            .arg(table, sets.join(QStringLiteral(", ")), where);
+                            .arg(table, sets.join(QStringLiteral(", ")), protectedWhere);
 
     QSqlQuery q(m_db);
     q.prepare(sql);

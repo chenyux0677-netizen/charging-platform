@@ -22,6 +22,7 @@
 #include <QPushButton>
 #include <QStackedWidget>
 #include <QTabWidget>
+#include <QTableWidget>
 #include <QTimer>
 
 namespace {
@@ -159,12 +160,65 @@ void GuiFlowTest::adminLoginFlow()
     QVERIFY(gotSignal);
     QCOMPARE(gotUsername, QStringLiteral("admin"));
 
+    // 准备两个用户，验证管理员端手机号模糊搜索。
+    RemoteDataSource userSeeder;
+    QVERIFY(userSeeder.connectToServer(QStringLiteral("127.0.0.1"), server.port()));
+    QVERIFY(!userSeeder.loginUser(QStringLiteral("13900000001")).isEmpty());
+    QVERIFY(!userSeeder.loginUser(QStringLiteral("13900000002")).isEmpty());
+
     // 管理员主界面:5 个管理页签
     AdminMainWindow mainWin;
     mainWin.show();
     QTabWidget *tabs = find<QTabWidget>(&mainWin, "mainTabs");
     QVERIFY(tabs);
     QCOMPARE(tabs->count(), 5);
+
+    // 电桩状态页展示全量数量与占比，默认种子电桩均为空闲。
+    QWidget *pileStatusPage = tabs->widget(1);
+    QLabel *totalPiles = find<QLabel>(pileStatusPage, "pileTotalValue");
+    QLabel *freePiles = find<QLabel>(pileStatusPage, "pileFreeValue");
+    QLabel *busyPiles = find<QLabel>(pileStatusPage, "pileBusyValue");
+    QLabel *faultPiles = find<QLabel>(pileStatusPage, "pileFaultValue");
+    QVERIFY(totalPiles && freePiles && busyPiles && faultPiles);
+    const int seedPileCount = AppContext::instance()->dataSource()
+                                  ->query(QStringLiteral("charging_piles")).size();
+    QCOMPARE(totalPiles->text(), QStringLiteral("%1 根").arg(seedPileCount));
+    QCOMPARE(freePiles->text(), QStringLiteral("%1 根 · 100.0%").arg(seedPileCount));
+    QCOMPARE(busyPiles->text(), QStringLiteral("0 根 · 0.0%"));
+    QCOMPARE(faultPiles->text(), QStringLiteral("0 根 · 0.0%"));
+
+    // 电站管理页按站汇总电桩总数、正常率与使用率；默认种子电桩均非故障且未使用。
+    QWidget *stationManagePage = tabs->widget(3);
+    QTableWidget *stationTable = find<QTableWidget>(stationManagePage,
+                                                     "stationManageTable");
+    QVERIFY(stationTable);
+    QCOMPARE(stationTable->columnCount(), 8);
+    const QueryResult seedStations = AppContext::instance()->dataSource()
+                                         ->query(QStringLiteral("charging_stations"));
+    QCOMPARE(stationTable->rowCount(), seedStations.size());
+    int stationPileSum = 0;
+    for (int row = 0; row < stationTable->rowCount(); ++row) {
+        const QString totalText = stationTable->item(row, 3)->text();
+        const int stationPileCount = totalText.section(' ', 0, 0).toInt();
+        stationPileSum += stationPileCount;
+        QCOMPARE(stationTable->item(row, 4)->text(),
+                 QStringLiteral("100.0% (%1/%1)").arg(stationPileCount));
+        QCOMPARE(stationTable->item(row, 5)->text(),
+                 QStringLiteral("0.0% (0/%1)").arg(stationPileCount));
+    }
+    QCOMPARE(stationPileSum, seedPileCount);
+
+    tabs->setCurrentIndex(4);
+    QWidget *userPage = tabs->widget(4);
+    QLineEdit *phoneSearch = find<QLineEdit>(userPage, "phoneSearchEdit");
+    QTableWidget *userTable = userPage->findChild<QTableWidget *>();
+    QVERIFY(phoneSearch && userTable);
+    QCOMPARE(userTable->rowCount(), 2);
+    phoneSearch->setText(QStringLiteral("00000001"));
+    QCOMPARE(userTable->rowCount(), 1);
+    QCOMPARE(userTable->item(0, 1)->text(), QStringLiteral("13900000001"));
+    phoneSearch->clear();
+    QCOMPARE(userTable->rowCount(), 2);
 }
 
 // ---- ③ 用户端:手机号免密登录(未注册自动注册,不重复注册) ----

@@ -17,6 +17,7 @@ private slots:
     void onAdd();
     void onEdit();
     void onRemove();
+    void onDetails();
 
 private:
     // 弹出"新增/编辑充电站"对话框;取消或校验不过返回空 Map

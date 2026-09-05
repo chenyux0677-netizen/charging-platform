@@ -67,8 +67,8 @@ void Server::seedInitialData()
     struct SeedStation { QString name, address; double lat, lng; QVector<PileGroup> piles; };
 
     const QVector<SeedStation> seeds = {
-        { QStringLiteral("中关村科技园充电站"), QStringLiteral("北京市海淀区中关村大街1号"),
-          39.984, 116.318,
+        { QStringLiteral("北理1号充电站"), QStringLiteral("北京市海淀区中关村南大街5号"),
+          39.959951, 116.315227,
           { {4, QStringLiteral("快充"), 120.0, 1.20},
             {2, QStringLiteral("慢充"),   7.0, 1.00} } },
         { QStringLiteral("陆家嘴金融城充电站"), QStringLiteral("上海市浦东新区世纪大道100号"),

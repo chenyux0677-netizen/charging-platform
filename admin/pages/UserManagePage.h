@@ -4,8 +4,9 @@
 #include <QTableWidget>
 #include <QWidget>
 
-// 管理员端 · 用户管理页:用户列表(可按状态筛选) / 封号(冻结) / 解封(恢复正常)
+// 管理员端 · 用户管理页:用户列表(手机号搜索 / 状态筛选) / 封号 / 解封
 class QComboBox;
+class QLineEdit;
 class QPushButton;
 
 class UserManagePage : public QWidget
@@ -29,6 +30,7 @@ private:
     void updateButtons();
 
     QComboBox *m_statusFilter = nullptr;
+    QLineEdit *m_phoneSearch = nullptr;
     QTableWidget *m_table = nullptr;
     QPushButton *m_freezeBtn = nullptr;
     QPushButton *m_unfreezeBtn = nullptr;

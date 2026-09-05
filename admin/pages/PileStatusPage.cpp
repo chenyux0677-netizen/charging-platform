@@ -43,6 +43,37 @@ PileStatusPage::PileStatusPage(QWidget *parent)
     auto *title = new QLabel(QStringLiteral("充电桩状态"), this);
     title->setObjectName(QStringLiteral("pageTitleLabel"));
 
+    auto *summaryRow = new QHBoxLayout;
+    const auto addSummaryCard = [this, summaryRow](const QString &cardName,
+                                                    const QString &caption,
+                                                    const QString &valueName) {
+        auto *card = new QWidget(this);
+        card->setObjectName(cardName);
+        auto *captionLabel = new QLabel(caption, card);
+        captionLabel->setObjectName(QStringLiteral("pileStatusSummaryCaption"));
+        auto *valueLabel = new QLabel(QStringLiteral("—"), card);
+        valueLabel->setObjectName(valueName);
+        auto *cardLayout = new QVBoxLayout(card);
+        cardLayout->setContentsMargins(14, 10, 14, 10);
+        cardLayout->setSpacing(3);
+        cardLayout->addWidget(captionLabel);
+        cardLayout->addWidget(valueLabel);
+        summaryRow->addWidget(card, 1);
+        return valueLabel;
+    };
+    m_totalValue = addSummaryCard(QStringLiteral("pileSummaryTotal"),
+                                  QStringLiteral("电桩总数"),
+                                  QStringLiteral("pileTotalValue"));
+    m_freeValue = addSummaryCard(QStringLiteral("pileSummaryFree"),
+                                 QStringLiteral("空闲"),
+                                 QStringLiteral("pileFreeValue"));
+    m_busyValue = addSummaryCard(QStringLiteral("pileSummaryBusy"),
+                                 QStringLiteral("使用中"),
+                                 QStringLiteral("pileBusyValue"));
+    m_faultValue = addSummaryCard(QStringLiteral("pileSummaryFault"),
+                                  QStringLiteral("故障"),
+                                  QStringLiteral("pileFaultValue"));
+
     auto *filterRow = new QHBoxLayout;
     filterRow->addWidget(new QLabel(QStringLiteral("按状态筛选:"), this));
     m_statusFilter = new QComboBox(this);
@@ -80,6 +111,7 @@ PileStatusPage::PileStatusPage(QWidget *parent)
 
     auto *layout = new QVBoxLayout(this);
     layout->addWidget(title);
+    layout->addLayout(summaryRow);
     layout->addLayout(filterRow);
     layout->addWidget(m_table, 1);
 
@@ -128,6 +160,28 @@ void PileStatusPage::refresh()
 
     const QString filter = m_statusFilter->currentText();
     const QueryResult piles = ds->query(QStringLiteral("charging_piles"));
+
+    int freeCount = 0;
+    int busyCount = 0;
+    int faultCount = 0;
+    for (const DataRow &pile : piles) {
+        const QString status = pile.value(QStringLiteral("status")).toString();
+        if (status == QStringLiteral("空闲"))
+            ++freeCount;
+        else if (status == QStringLiteral("使用中"))
+            ++busyCount;
+        else if (status == QStringLiteral("故障"))
+            ++faultCount;
+    }
+    const int total = piles.size();
+    const auto statusText = [total](int count) {
+        const double percent = total > 0 ? count * 100.0 / total : 0.0;
+        return QStringLiteral("%1 根 · %2%").arg(count).arg(percent, 0, 'f', 1);
+    };
+    m_totalValue->setText(QStringLiteral("%1 根").arg(total));
+    m_freeValue->setText(statusText(freeCount));
+    m_busyValue->setText(statusText(busyCount));
+    m_faultValue->setText(statusText(faultCount));
 
     QVector<DataRow> rows;
     rows.reserve(piles.size());

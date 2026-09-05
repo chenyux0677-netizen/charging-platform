@@ -48,6 +48,28 @@ AdminMainWindow #pageTitleLabel {
 AdminMainWindow QComboBox {
     min-width: 90px;
 }
+AdminMainWindow #phoneSearchEdit {
+    min-width: 220px;
+}
+
+/* ---------- 电桩状态汇总 ---------- */
+#pileSummaryTotal, #pileSummaryFree, #pileSummaryBusy, #pileSummaryFault {
+    background: #ffffff;
+    border: 1px solid #e3e8ef;
+    border-radius: 10px;
+}
+#pileStatusSummaryCaption {
+    color: #7a8698;
+    font-size: 12px;
+}
+#pileTotalValue, #pileFreeValue, #pileBusyValue, #pileFaultValue {
+    font-size: 20px;
+    font-weight: 700;
+}
+#pileTotalValue { color: #334155; }
+#pileFreeValue { color: #087f5b; }
+#pileBusyValue { color: #b45309; }
+#pileFaultValue { color: #c24146; }
 
 /* ---------- 管理操作按钮 ---------- */
 AdminMainWindow QPushButton {
@@ -91,6 +113,22 @@ AdminMainWindow #adminEditButton {
 AdminMainWindow #adminEditButton:hover {
     background: #dfe7ff;
     border-color: #7890eb;
+}
+
+AdminMainWindow #adminDetailsButton {
+    background: #f0f9ff;
+    color: #0369a1;
+    border-color: #7dd3fc;
+}
+AdminMainWindow #adminDetailsButton:hover {
+    background: #e0f2fe;
+    border-color: #38bdf8;
+}
+
+#stationPileDetailsTitle {
+    color: #1f2a44;
+    font-size: 17px;
+    font-weight: 700;
 }
 
 AdminMainWindow #adminRestartButton {

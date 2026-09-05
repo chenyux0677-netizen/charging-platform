@@ -163,6 +163,33 @@ int main(int argc, char *argv[])
                         QStringLiteral("id = ?"), {uid}) == 0,
           "数据库拒绝负数余额");
 
+    // 充电期间锁定电桩及所属电站的资料，避免设备参数和位置被管理员改动。
+    QHash<QString, QVariant> activeStation = station;
+    activeStation.insert(QStringLiteral("name"), QStringLiteral("充电中锁定测试站"));
+    const qlonglong activeSid = ds.insertRow(QStringLiteral("charging_stations"), activeStation);
+    QHash<QString, QVariant> activePile = pile;
+    activePile.insert(QStringLiteral("station_id"), activeSid);
+    activePile.insert(QStringLiteral("code"), QStringLiteral("01"));
+    const qlonglong activePid = ds.insertRow(QStringLiteral("charging_piles"), activePile);
+    const qlonglong activeOrderId = ds.startCharge(uid, activePid);
+    check(activeSid > 0 && activePid > 0 && activeOrderId > 0,
+          QStringLiteral("建立充电中的电站/电桩测试数据"));
+
+    QHash<QString, QVariant> pileRename;
+    pileRename.insert(QStringLiteral("code"), QStringLiteral("02"));
+    check(ds.updateRows(QStringLiteral("charging_piles"), pileRename,
+                        QStringLiteral("id = ?"), {activePid}) == 0,
+          QStringLiteral("充电中的电桩禁止修改"));
+    QHash<QString, QVariant> stationRename;
+    stationRename.insert(QStringLiteral("address"), QStringLiteral("修改后的地址"));
+    check(ds.updateRows(QStringLiteral("charging_stations"), stationRename,
+                        QStringLiteral("id = ?"), {activeSid}) == 0,
+          QStringLiteral("存在充电中电桩时禁止修改电站"));
+    check(!ds.removeChargingPile(activePid), QStringLiteral("充电中的电桩禁止删除"));
+    check(!ds.removeChargingStation(activeSid),
+          QStringLiteral("存在充电中电桩时禁止删除电站"));
+    check(ds.stopCharge(activeOrderId), QStringLiteral("结束锁定测试订单"));
+
     // 外键阻止绕过业务接口直接删除仍有电桩的站；安全接口在事务中删除未使用桩和站。
     const int blocked = ds.removeRows(QStringLiteral("charging_stations"),
                                       QStringLiteral("id = ?"), QVariantList{sid});

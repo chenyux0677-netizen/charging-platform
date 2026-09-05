@@ -45,8 +45,10 @@ UserManagePage::UserManagePage(QWidget *parent)
     m_table->horizontalHeader()->setStretchLastSection(true);
 
     m_freezeBtn = new QPushButton(QStringLiteral("封号"), this);
+    m_freezeBtn->setObjectName(QStringLiteral("adminDangerButton"));
     m_freezeBtn->setToolTip(QStringLiteral("冻结该用户,将无法登录"));
     m_unfreezeBtn = new QPushButton(QStringLiteral("解封"), this);
+    m_unfreezeBtn->setObjectName(QStringLiteral("adminPositiveButton"));
     m_unfreezeBtn->setToolTip(QStringLiteral("恢复正常状态,可重新登录"));
 
     auto *btnRow = new QHBoxLayout;

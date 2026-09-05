@@ -98,7 +98,7 @@ void Server::seedInitialData()
                 QHash<QString, QVariant> p;
                 p.insert(QStringLiteral("station_id"), sid);
                 p.insert(QStringLiteral("code"),
-                         QStringLiteral("P%1-%2").arg(sid).arg(idx, 2, 10, QChar('0')));
+                         QStringLiteral("%1").arg(idx, 2, 10, QChar('0')));
                 p.insert(QStringLiteral("type"), g.type);
                 p.insert(QStringLiteral("power_kw"), g.power);
                 p.insert(QStringLiteral("price_per_kwh"), g.price);
@@ -410,7 +410,18 @@ void Server::handleMessage(QTcpSocket *client, const QJsonObject &msg)
         return;
     }
 
-    if (op == QStringLiteral("removeChargingPile")) {
+    if (op == QStringLiteral("restartChargingPile")) {
+        const QHash<QString, QVariant> values =
+            Protocol::jsonToValues(msg.value(QStringLiteral("values")).toObject());
+        const bool ok = m_ds->restartChargingPile(
+            values.value(QStringLiteral("pileId")).toLongLong());
+        resp.insert(QStringLiteral("ok"), ok);
+        if (ok)
+            resp.insert(QStringLiteral("data"), true);
+        else
+            resp.insert(QStringLiteral("error"),
+                        QStringLiteral("电桩不存在、正在使用或重启失败"));
+    } else if (op == QStringLiteral("removeChargingPile")) {
         const QHash<QString, QVariant> values =
             Protocol::jsonToValues(msg.value(QStringLiteral("values")).toObject());
         const bool ok = m_ds->removeChargingPile(

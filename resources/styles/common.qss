@@ -59,41 +59,47 @@ QComboBox QAbstractItemView {
 
 /* ---------- 按钮 ---------- */
 QPushButton {
-    background: #edf0f6;
-    color: #2a3550;
-    border: none;
+    background: #e1e7f0;
+    color: #26344d;
+    border: 1px solid #cbd5e1;
     border-radius: 8px;
     padding: 7px 16px;
     font-size: 14px;
 }
 QPushButton:hover {
-    background: #e1e6ef;
+    background: #d5dde9;
+    border-color: #aebaca;
 }
 QPushButton:pressed {
-    background: #d3dae7;
+    background: #c8d2e0;
 }
 QPushButton:disabled {
     background: #f1f3f7;
     color: #aab4c2;
+    border-color: #e1e6ed;
 }
 
 /* 主按钮(角色选择 / 登录) */
 #userButton, #adminButton, #loginButton {
     background: #4a6cf7;
     color: #ffffff;
+    border-color: #4a6cf7;
     font-weight: 600;
     font-size: 15px;
     padding: 8px 0;
 }
 #userButton:hover, #adminButton:hover, #loginButton:hover {
     background: #3b5ce0;
+    border-color: #3b5ce0;
 }
 #userButton:pressed, #adminButton:pressed, #loginButton:pressed {
     background: #3350c6;
+    border-color: #3350c6;
 }
 #userButton:disabled, #adminButton:disabled, #loginButton:disabled {
     background: #a9b8ec;
     color: #eef1ff;
+    border-color: #a9b8ec;
 }
 
 /* ---------- 登录 / 角色选择窗口 ---------- */

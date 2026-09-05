@@ -49,6 +49,97 @@ AdminMainWindow QComboBox {
     min-width: 90px;
 }
 
+/* ---------- 管理操作按钮 ---------- */
+AdminMainWindow QPushButton {
+    background: #ffffff;
+    color: #334155;
+    border: 1px solid #cbd5e1;
+    font-weight: 600;
+}
+AdminMainWindow QPushButton:hover {
+    background: #eef2f7;
+    border-color: #94a3b8;
+}
+AdminMainWindow QPushButton:pressed {
+    background: #e2e8f0;
+}
+AdminMainWindow QPushButton:disabled {
+    background: #f1f4f8;
+    color: #9aa5b4;
+    border-color: #dfe5ec;
+}
+
+AdminMainWindow #adminAddButton {
+    background: #4a6cf7;
+    color: #ffffff;
+    border-color: #4a6cf7;
+}
+AdminMainWindow #adminAddButton:hover {
+    background: #3b5ce0;
+    border-color: #3b5ce0;
+}
+AdminMainWindow #adminAddButton:pressed {
+    background: #3350c6;
+    border-color: #3350c6;
+}
+
+AdminMainWindow #adminEditButton {
+    background: #edf2ff;
+    color: #3151c6;
+    border-color: #afbef5;
+}
+AdminMainWindow #adminEditButton:hover {
+    background: #dfe7ff;
+    border-color: #7890eb;
+}
+
+AdminMainWindow #adminRestartButton {
+    background: #eef2ff;
+    color: #4338ca;
+    border-color: #a5b4fc;
+}
+AdminMainWindow #adminRestartButton:hover {
+    background: #e0e7ff;
+    border-color: #818cf8;
+}
+
+AdminMainWindow #adminDeleteButton,
+AdminMainWindow #adminDangerButton {
+    background: #fff5f5;
+    color: #c53d43;
+    border-color: #f1aeb1;
+}
+AdminMainWindow #adminDeleteButton:hover,
+AdminMainWindow #adminDangerButton:hover {
+    background: #ffe7e8;
+    border-color: #e8787d;
+}
+AdminMainWindow #adminDeleteButton:pressed,
+AdminMainWindow #adminDangerButton:pressed {
+    background: #ffd8da;
+}
+
+AdminMainWindow #adminPositiveButton {
+    background: #e6f7ef;
+    color: #087f5b;
+    border-color: #91d4b8;
+}
+AdminMainWindow #adminPositiveButton:hover {
+    background: #d5f1e5;
+    border-color: #5cbd97;
+}
+
+AdminMainWindow #adminAddButton:disabled,
+AdminMainWindow #adminEditButton:disabled,
+AdminMainWindow #adminRestartButton:disabled,
+AdminMainWindow #adminDeleteButton:disabled,
+AdminMainWindow #adminDangerButton:disabled,
+AdminMainWindow #adminPositiveButton:disabled {
+    background: #f1f4f8;
+    color: #9aa5b4;
+    border-color: #dfe5ec;
+}
+
 /* ---------- 销售统计页 ---------- */
 #summaryCard {
     background: #ffffff;

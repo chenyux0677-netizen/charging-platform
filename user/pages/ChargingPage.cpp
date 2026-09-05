@@ -4,6 +4,7 @@
 #include "user/services/ChargeService.h"
 
 #include <QDateTime>
+#include <QHBoxLayout>
 #include <QLabel>
 #include <QMessageBox>
 #include <QPushButton>
@@ -17,14 +18,37 @@ ChargingPage::ChargingPage(QWidget *parent)
     title->setObjectName(QStringLiteral("pageTitleLabel"));
     title->setAlignment(Qt::AlignCenter);
 
-    m_pileLabel = new QLabel(this);
+    auto *pileCard = new QWidget(this);
+    pileCard->setObjectName(QStringLiteral("chargePileCard"));
+
+    m_stationLabel = new QLabel(pileCard);
+    m_stationLabel->setObjectName(QStringLiteral("chargeStationLabel"));
+    m_stationLabel->setWordWrap(true);
+
+    m_pileLabel = new QLabel(pileCard);
     m_pileLabel->setObjectName(QStringLiteral("pileLabel"));
-    m_pileLabel->setAlignment(Qt::AlignCenter);
     m_pileLabel->setWordWrap(true);
 
-    m_priceLabel = new QLabel(this);
+    m_priceLabel = new QLabel(pileCard);
     m_priceLabel->setObjectName(QStringLiteral("priceLabel"));
     m_priceLabel->setAlignment(Qt::AlignCenter);
+
+    auto *pileSummary = new QHBoxLayout;
+    pileSummary->setContentsMargins(0, 0, 0, 0);
+    pileSummary->addWidget(m_pileLabel, 1);
+    pileSummary->addWidget(m_priceLabel);
+
+    auto *pileCardLayout = new QVBoxLayout(pileCard);
+    pileCardLayout->setContentsMargins(14, 12, 14, 12);
+    pileCardLayout->setSpacing(8);
+    pileCardLayout->addWidget(m_stationLabel);
+    pileCardLayout->addLayout(pileSummary);
+
+    auto *progressCard = new QWidget(this);
+    progressCard->setObjectName(QStringLiteral("chargeProgressCard"));
+
+    auto *progressCaption = new QLabel(QStringLiteral("本次充电"), progressCard);
+    progressCaption->setObjectName(QStringLiteral("chargeProgressCaption"));
 
     m_energyLabel = new QLabel(QStringLiteral("已充电量:0.00 kWh"), this);
     m_energyLabel->setObjectName(QStringLiteral("energyLabel"));
@@ -37,6 +61,18 @@ ChargingPage::ChargingPage(QWidget *parent)
     m_timeLabel = new QLabel(QStringLiteral("时长:0 分钟"), this);
     m_timeLabel->setObjectName(QStringLiteral("timeLabel"));
     m_timeLabel->setAlignment(Qt::AlignCenter);
+
+    auto *progressValues = new QHBoxLayout;
+    progressValues->setContentsMargins(0, 0, 0, 0);
+    progressValues->addWidget(m_energyLabel, 1);
+    progressValues->addWidget(m_amountLabel, 1);
+
+    auto *progressLayout = new QVBoxLayout(progressCard);
+    progressLayout->setContentsMargins(14, 12, 14, 12);
+    progressLayout->setSpacing(8);
+    progressLayout->addWidget(progressCaption);
+    progressLayout->addWidget(m_timeLabel);
+    progressLayout->addLayout(progressValues);
 
     m_startChargeBtn = new QPushButton(QStringLiteral("开始充电"), this);
     m_startChargeBtn->setObjectName(QStringLiteral("startChargeBtn"));
@@ -53,12 +89,8 @@ ChargingPage::ChargingPage(QWidget *parent)
     auto *layout = new QVBoxLayout(this);
     layout->addWidget(title);
     layout->addSpacing(12);
-    layout->addWidget(m_pileLabel);
-    layout->addWidget(m_priceLabel);
-    layout->addSpacing(8);
-    layout->addWidget(m_energyLabel);
-    layout->addWidget(m_amountLabel);
-    layout->addWidget(m_timeLabel);
+    layout->addWidget(pileCard);
+    layout->addWidget(progressCard);
     layout->addSpacing(20);
     layout->addWidget(m_startChargeBtn);
     layout->addWidget(m_stopChargeBtn);
@@ -80,6 +112,7 @@ void ChargingPage::resetPage()
     m_charging = false;
     m_progressBusy = false;
 
+    m_stationLabel->setText(QStringLiteral("请先从电站页面选择充电桩"));
     m_pileLabel->setText(QStringLiteral("尚未选择充电桩"));
     m_priceLabel->setText(QStringLiteral("单价:--"));
     m_energyLabel->setText(QStringLiteral("已充电量:0.00 kWh"));
@@ -89,16 +122,17 @@ void ChargingPage::resetPage()
     m_stopChargeBtn->setEnabled(false);
 }
 
-void ChargingPage::setPile(const DataRow &pile)
+void ChargingPage::setPile(const DataRow &pile, const DataRow &station)
 {
     m_pile = pile;
     m_power = pile.value(QStringLiteral("power_kw")).toDouble();
     m_price = pile.value(QStringLiteral("price_per_kwh")).toDouble();
-    m_pileLabel->setText(QStringLiteral("电桩:%1  %2  %3 kW")
+    m_stationLabel->setText(station.value(QStringLiteral("name")).toString());
+    m_pileLabel->setText(QStringLiteral("%1  ·  %2  ·  %3 kW")
                              .arg(pile.value(QStringLiteral("code")).toString())
                              .arg(pile.value(QStringLiteral("type")).toString())
                              .arg(m_power, 0, 'f', 0));
-    m_priceLabel->setText(QStringLiteral("单价:%1 元/度").arg(m_price, 0, 'f', 2));
+    m_priceLabel->setText(QStringLiteral("¥ %1 / 度").arg(m_price, 0, 'f', 2));
     m_energyLabel->setText(QStringLiteral("已充电量:0.00 kWh"));
     m_amountLabel->setText(QStringLiteral("费用:0.00 元"));
     m_timeLabel->setText(QStringLiteral("时长:0 分钟"));

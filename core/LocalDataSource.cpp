@@ -583,6 +583,29 @@ bool LocalDataSource::updateChargingProgress(qlonglong orderId)
     return true;
 }
 
+bool LocalDataSource::restartChargingPile(qlonglong pileId)
+{
+    if (!m_db.isOpen() || pileId <= 0)
+        return false;
+
+    // 模拟向设备发送重启指令。进行中的充电不能被管理操作打断；
+    // 其余电桩重启完成后统一恢复为空闲。
+    QSqlQuery restart(m_db);
+    restart.prepare(QStringLiteral(
+        "UPDATE charging_piles SET status = '空闲' "
+        "WHERE id = ? AND status <> '使用中' "
+        "AND NOT EXISTS (SELECT 1 FROM orders "
+        "WHERE pile_id = ? AND status = '充电中')"));
+    restart.addBindValue(pileId);
+    restart.addBindValue(pileId);
+    if (!restart.exec() || restart.numRowsAffected() != 1)
+        return false;
+
+    emit dataChanged(QStringLiteral("charging_piles"));
+    qInfo() << "[LocalDataSource] 电桩" << pileId << "远程重启完成";
+    return true;
+}
+
 bool LocalDataSource::removeChargingPile(qlonglong pileId)
 {
     if (!m_db.isOpen() || pileId <= 0 || !m_db.transaction())

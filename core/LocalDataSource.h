@@ -41,6 +41,7 @@ public:
     bool updateChargingProgress(qlonglong orderId) override;
     bool stopCharge(qlonglong orderId) override;
     bool settleCharge(qlonglong orderId) override;
+    bool restartChargingPile(qlonglong pileId) override;
     bool removeChargingPile(qlonglong pileId) override;
     bool removeChargingStation(qlonglong stationId) override;
 

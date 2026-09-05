@@ -18,6 +18,7 @@ private slots:
     void refresh();
     void onAdd();
     void onEdit();
+    void onRestart();
     void onRemove();
 
 private:

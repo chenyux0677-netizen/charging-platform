@@ -45,8 +45,11 @@ StationManagePage::StationManagePage(QWidget *parent)
     header->setSectionResizeMode(4, QHeaderView::ResizeToContents);
 
     auto *addBtn = new QPushButton(QStringLiteral("新增电站"), this);
+    addBtn->setObjectName(QStringLiteral("adminAddButton"));
     auto *editBtn = new QPushButton(QStringLiteral("修改"), this);
+    editBtn->setObjectName(QStringLiteral("adminEditButton"));
     auto *removeBtn = new QPushButton(QStringLiteral("删除"), this);
+    removeBtn->setObjectName(QStringLiteral("adminDeleteButton"));
     auto *btnRow = new QHBoxLayout;
     btnRow->addWidget(addBtn);
     btnRow->addWidget(editBtn);
@@ -133,8 +136,22 @@ QHash<QString, QVariant> StationManagePage::editStationDialog(const QHash<QStrin
     form->addRow(QStringLiteral("经度"), lngSpin);
 
     auto *btnBox = new QDialogButtonBox(QDialogButtonBox::Ok | QDialogButtonBox::Cancel, &dlg);
-    connect(btnBox, &QDialogButtonBox::accepted, &dlg, &QDialog::accept);
     connect(btnBox, &QDialogButtonBox::rejected, &dlg, &QDialog::reject);
+    connect(btnBox, &QDialogButtonBox::accepted, &dlg, [&] {
+        if (nameEdit->text().trimmed().isEmpty()) {
+            QMessageBox::warning(&dlg, QStringLiteral("提示"),
+                                 QStringLiteral("电站名称不能为空。"));
+            nameEdit->setFocus();
+            return;
+        }
+        if (addrEdit->text().trimmed().isEmpty()) {
+            QMessageBox::warning(&dlg, QStringLiteral("提示"),
+                                 QStringLiteral("电站地址不能为空。"));
+            addrEdit->setFocus();
+            return;
+        }
+        dlg.accept();
+    });
     form->addRow(btnBox);
 
     dlg.setLayout(form);
@@ -200,11 +217,6 @@ QHash<QString, QVariant> StationManagePage::editStationDialog(const QHash<QStrin
 
     if (dlg.exec() != QDialog::Accepted)
         return {};
-    if (nameEdit->text().trimmed().isEmpty() || addrEdit->text().trimmed().isEmpty()) {
-        QMessageBox::warning(this, QStringLiteral("提示"),
-                             QStringLiteral("名称和地址不能为空。"));
-        return {};
-    }
 
     QHash<QString, QVariant> values;
     values.insert(QStringLiteral("name"), nameEdit->text().trimmed());
@@ -219,8 +231,12 @@ void StationManagePage::onAdd()
     const QHash<QString, QVariant> values = editStationDialog({});
     if (values.isEmpty())
         return;
-    if (DataSource *ds = AppContext::instance()->dataSource())
-        ds->insertRow(QStringLiteral("charging_stations"), values);
+    if (DataSource *ds = AppContext::instance()->dataSource()) {
+        if (ds->insertRow(QStringLiteral("charging_stations"), values) <= 0) {
+            QMessageBox::warning(this, QStringLiteral("新增失败"),
+                                 QStringLiteral("未能新增电站，请稍后重试。"));
+        }
+    }
     // 数据变更经 dataChanged 广播自动刷新
 }
 
@@ -248,8 +264,11 @@ void StationManagePage::onEdit()
     const QHash<QString, QVariant> values = editStationDialog(rows.first());
     if (values.isEmpty())
         return;
-    ds->updateRows(QStringLiteral("charging_stations"), values,
-                   QStringLiteral("id = ?"), QVariantList{id});
+    if (ds->updateRows(QStringLiteral("charging_stations"), values,
+                       QStringLiteral("id = ?"), QVariantList{id}) <= 0) {
+        QMessageBox::warning(this, QStringLiteral("修改失败"),
+                             QStringLiteral("未能修改电站，请稍后重试。"));
+    }
 }
 
 void StationManagePage::onRemove()

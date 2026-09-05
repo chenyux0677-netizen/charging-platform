@@ -297,7 +297,8 @@ void GuiFlowTest::chargeFlow()
     QVERIFY(stationList->count() > 0);
     QWidget *stationCard = stationList->itemWidget(stationList->item(0));
     QVERIFY(stationCard);
-    QVERIFY(find<QLabel>(stationCard, "stationCardName"));
+    QLabel *selectedStationName = find<QLabel>(stationCard, "stationCardName");
+    QVERIFY(selectedStationName);
     QVERIFY(find<QLabel>(stationCard, "stationPriceLabel"));
     QTest::mouseClick(stationList->viewport(), Qt::LeftButton, Qt::NoModifier,
                       stationList->visualItemRect(stationList->item(0)).center());
@@ -318,12 +319,14 @@ void GuiFlowTest::chargeFlow()
     QPushButton *startBtn = find<QPushButton>(&mainWin, "startChargeBtn");
     QPushButton *stopBtn = find<QPushButton>(&mainWin, "stopChargeBtn");
     QLabel *energyLabel = find<QLabel>(&mainWin, "energyLabel");
+    QLabel *stationLabel = find<QLabel>(&mainWin, "chargeStationLabel");
     QLabel *pileLabel = find<QLabel>(&mainWin, "pileLabel");
     QLabel *priceLabel = find<QLabel>(&mainWin, "priceLabel");
     QLabel *amountLabel = find<QLabel>(&mainWin, "amountLabel");
     QLabel *timeLabel = find<QLabel>(&mainWin, "timeLabel");
-    QVERIFY(startBtn && stopBtn && energyLabel && pileLabel && priceLabel
+    QVERIFY(startBtn && stopBtn && energyLabel && stationLabel && pileLabel && priceLabel
             && amountLabel && timeLabel);
+    QCOMPARE(stationLabel->text(), selectedStationName->text());
     QCOMPARE(stopBtn->text(), QStringLiteral("结束并结算"));
     QVERIFY(startBtn->isEnabled()); // 无未完成订单,可开始
 
@@ -342,6 +345,12 @@ void GuiFlowTest::chargeFlow()
     QCOMPARE(pileBusy.first().value(QStringLiteral("status")).toString(),
              QStringLiteral("使用中"));
     QVERIFY(!ds->removeChargingPile(pileId));
+
+    // 管理员可以发送远程重启，但不能打断正在进行的充电。
+    RemoteDataSource adminClient;
+    QVERIFY(adminClient.connectToServer(QStringLiteral("127.0.0.1"), server.port()));
+    QVERIFY(adminClient.loginAdmin(QStringLiteral("admin"), QStringLiteral("123456")));
+    QVERIFY(!adminClient.restartChargingPile(pileId));
 
     // 第二个用户同时抢同一个桩必须失败，且不能留下半成品订单。
     RemoteDataSource otherClient;
@@ -384,6 +393,7 @@ void GuiFlowTest::chargeFlow()
     QLabel *cardAmount = find<QLabel>(orderCard, "orderCardAmountLabel");
     QVERIFY(cardAmount && cardAmount->text().startsWith(QStringLiteral("¥ ")));
     QCOMPARE(pileLabel->text(), QStringLiteral("尚未选择充电桩"));
+    QCOMPARE(stationLabel->text(), QStringLiteral("请先从电站页面选择充电桩"));
     QCOMPARE(priceLabel->text(), QStringLiteral("单价:--"));
     QCOMPARE(energyLabel->text(), QStringLiteral("已充电量:0.00 kWh"));
     QCOMPARE(amountLabel->text(), QStringLiteral("费用:0.00 元"));

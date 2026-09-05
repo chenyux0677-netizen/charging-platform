@@ -66,6 +66,8 @@ public:
     virtual bool settleCharge(qlonglong orderId) = 0;
 
     // 管理端安全删除：有关联订单或正在使用时拒绝，避免产生孤儿数据。
+    // 远程重启为模拟设备指令：使用中的电桩拒绝重启，其余状态恢复为空闲。
+    virtual bool restartChargingPile(qlonglong pileId) = 0;
     virtual bool removeChargingPile(qlonglong pileId) = 0;
     virtual bool removeChargingStation(qlonglong stationId) = 0;
 

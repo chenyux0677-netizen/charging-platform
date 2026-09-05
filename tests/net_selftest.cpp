@@ -99,6 +99,26 @@ int main(int argc, char *argv[])
     check(clientB.query(QStringLiteral("admins")).isEmpty(),
           "管理员账号凭据不通过网络查询接口暴露");
 
+    const QueryResult piles = clientB.query(QStringLiteral("charging_piles"));
+    check(!piles.isEmpty(), "管理员查到待测试电桩");
+    if (!piles.isEmpty()) {
+        const qlonglong pileId = piles.first().value(QStringLiteral("id")).toLongLong();
+        check(!clientA.restartChargingPile(pileId), "用户无权发送远程重启指令");
+        QHash<QString, QVariant> fault;
+        fault.insert(QStringLiteral("status"), QStringLiteral("故障"));
+        check(clientB.updateRows(QStringLiteral("charging_piles"), fault,
+                                 QStringLiteral("id = ?"), {pileId}) == 1,
+              "管理员将电桩标记为故障");
+        check(clientB.restartChargingPile(pileId), "管理员远程重启电桩成功");
+        const QueryResult restarted = clientB.query(
+            QStringLiteral("charging_piles"), {QStringLiteral("status")},
+            QStringLiteral("id = ?"), {pileId});
+        check(restarted.size() == 1
+                  && restarted.first().value(QStringLiteral("status")).toString()
+                         == QStringLiteral("空闲"),
+              "远程重启后电桩恢复为空闲");
+    }
+
     out << "\n[5/6] 客户端A 改数据 → 服务器广播 → 客户端B 实时收到\n";
     QHash<QString, QVariant> up;
     up.insert(QStringLiteral("balance"), 50.0);

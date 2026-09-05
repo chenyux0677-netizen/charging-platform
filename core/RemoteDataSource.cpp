@@ -264,6 +264,17 @@ bool RemoteDataSource::settleCharge(qlonglong orderId)
     return data.isValid() && data.toBool();
 }
 
+bool RemoteDataSource::restartChargingPile(qlonglong pileId)
+{
+    const quint32 reqId = ++m_nextReqId;
+    QHash<QString, QVariant> values;
+    values.insert(QStringLiteral("pileId"), pileId);
+    const QJsonObject request = Protocol::makeRequest(
+        reqId, QStringLiteral("restartChargingPile"), QString(), {}, QString(), {}, values);
+    const QVariant data = sendRequestAndWait(request);
+    return data.isValid() && data.toBool();
+}
+
 bool RemoteDataSource::removeChargingPile(qlonglong pileId)
 {
     const quint32 reqId = ++m_nextReqId;

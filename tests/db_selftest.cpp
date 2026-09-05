@@ -95,6 +95,21 @@ int main(int argc, char *argv[])
     check(ds.insertRow(QStringLiteral("charging_piles"), orphanPile) < 0,
           QStringLiteral("电桩不可引用不存在的电站"));
 
+    QHash<QString, QVariant> faultStatus;
+    faultStatus.insert(QStringLiteral("status"), QStringLiteral("故障"));
+    check(ds.updateRows(QStringLiteral("charging_piles"), faultStatus,
+                        QStringLiteral("id = ?"), {pid}) == 1,
+          QStringLiteral("模拟电桩进入故障状态"));
+    check(ds.restartChargingPile(pid), QStringLiteral("远程重启故障电桩成功"));
+    const QueryResult restartedPile = ds.query(
+        QStringLiteral("charging_piles"), {QStringLiteral("status")},
+        QStringLiteral("id = ?"), {pid});
+    check(restartedPile.size() == 1
+              && restartedPile.first().value(QStringLiteral("status")).toString()
+                     == QStringLiteral("空闲"),
+          QStringLiteral("重启后电桩恢复为空闲"));
+    check(!ds.restartChargingPile(-1), QStringLiteral("无效电桩不能远程重启"));
+
     out << "\n[4/5] 查询\n";
     QueryResult rows = ds.query(QStringLiteral("users"),
                                 {QStringLiteral("phone"), QStringLiteral("nickname"), QStringLiteral("balance")},

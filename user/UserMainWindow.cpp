@@ -89,8 +89,8 @@ UserMainWindow::UserMainWindow(QWidget *parent)
     connect(m_stationDetailPage, &StationDetailPage::backRequested,
             this, [this] { switchTo(0); });
     connect(m_stationDetailPage, &StationDetailPage::pileChosen,
-            this, [this](const DataRow &pile) {
-        m_chargingPage->setPile(pile);
+            this, [this](const DataRow &pile, const DataRow &station) {
+        m_chargingPage->setPile(pile, station);
         switchTo(2);
     });
     connect(m_stationDetailPage, &StationDetailPage::navigationRequested,

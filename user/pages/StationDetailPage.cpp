@@ -160,5 +160,5 @@ void StationDetailPage::onPileClicked()
                                        QStringLiteral("id = ?"), QVariantList{id});
     if (pile.isEmpty())
         return;
-    emit pileChosen(pile.first());
+    emit pileChosen(pile.first(), m_station);
 }

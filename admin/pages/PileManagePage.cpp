@@ -49,11 +49,17 @@ PileManagePage::PileManagePage(QWidget *parent)
     header->setSectionResizeMode(2, QHeaderView::Stretch);
 
     auto *addBtn = new QPushButton(QStringLiteral("新增电桩"), this);
+    addBtn->setObjectName(QStringLiteral("adminAddButton"));
     auto *editBtn = new QPushButton(QStringLiteral("修改"), this);
+    editBtn->setObjectName(QStringLiteral("adminEditButton"));
+    auto *restartBtn = new QPushButton(QStringLiteral("远程重启"), this);
+    restartBtn->setObjectName(QStringLiteral("adminRestartButton"));
     auto *removeBtn = new QPushButton(QStringLiteral("删除"), this);
+    removeBtn->setObjectName(QStringLiteral("adminDeleteButton"));
     auto *btnRow = new QHBoxLayout;
     btnRow->addWidget(addBtn);
     btnRow->addWidget(editBtn);
+    btnRow->addWidget(restartBtn);
     btnRow->addWidget(removeBtn);
     btnRow->addStretch(1);
 
@@ -65,6 +71,7 @@ PileManagePage::PileManagePage(QWidget *parent)
 
     connect(addBtn, &QPushButton::clicked, this, &PileManagePage::onAdd);
     connect(editBtn, &QPushButton::clicked, this, &PileManagePage::onEdit);
+    connect(restartBtn, &QPushButton::clicked, this, &PileManagePage::onRestart);
     connect(removeBtn, &QPushButton::clicked, this, &PileManagePage::onRemove);
     connect(m_stationFilter, qOverload<int>(&QComboBox::currentIndexChanged),
             this, &PileManagePage::refresh);
@@ -173,8 +180,8 @@ QHash<QString, QVariant> PileManagePage::editPileDialog(const QHash<QString, QVa
     auto *codeEdit = new QLineEdit(initial.value(QStringLiteral("code")).toString(), &dlg);
 
     auto *typeCombo = new QComboBox(&dlg);
-    typeCombo->setEditable(true);
-    typeCombo->addItems({QStringLiteral("快充"), QStringLiteral("慢充")});
+    // 新增电桩默认采用与 7 kW 默认功率匹配的慢充；编辑时仍回显原类型。
+    typeCombo->addItems({QStringLiteral("慢充"), QStringLiteral("快充")});
     const QString curType = initial.value(QStringLiteral("type")).toString();
     if (!curType.isEmpty())
         typeCombo->setCurrentText(curType);
@@ -210,8 +217,35 @@ QHash<QString, QVariant> PileManagePage::editPileDialog(const QHash<QString, QVa
     form->addRow(QStringLiteral("状态"), statusCombo);
 
     auto *btnBox = new QDialogButtonBox(QDialogButtonBox::Ok | QDialogButtonBox::Cancel, &dlg);
-    connect(btnBox, &QDialogButtonBox::accepted, &dlg, &QDialog::accept);
     connect(btnBox, &QDialogButtonBox::rejected, &dlg, &QDialog::reject);
+    connect(btnBox, &QDialogButtonBox::accepted, &dlg, [&] {
+        const qlonglong sid = stationCombo->currentData().toLongLong();
+        const QString code = codeEdit->text().trimmed();
+        if (sid <= 0 || code.isEmpty()) {
+            QMessageBox::warning(&dlg, QStringLiteral("提示"),
+                                 QStringLiteral("所属电站和桩号不能为空。"));
+            return;
+        }
+
+        // 桩号只要求站内唯一。提交前先给出明确提示，数据库的联合唯一
+        // 约束继续作为最终兜底。
+        if (DataSource *ds = AppContext::instance()->dataSource()) {
+            const QueryResult duplicates = ds->query(
+                QStringLiteral("charging_piles"), {QStringLiteral("id")},
+                QStringLiteral("station_id = ? AND code = ?"), {sid, code});
+            const qlonglong editingId = initial.value(QStringLiteral("id")).toLongLong();
+            for (const DataRow &row : duplicates) {
+                if (row.value(QStringLiteral("id")).toLongLong() != editingId) {
+                    QMessageBox::warning(
+                        &dlg, QStringLiteral("桩号重复"),
+                        QStringLiteral("电站“%1”中已存在桩号“%2”，请更换桩号。")
+                            .arg(stationCombo->currentText(), code));
+                    return;
+                }
+            }
+        }
+        dlg.accept();
+    });
     form->addRow(btnBox);
 
     dlg.setLayout(form);
@@ -220,11 +254,6 @@ QHash<QString, QVariant> PileManagePage::editPileDialog(const QHash<QString, QVa
     if (dlg.exec() != QDialog::Accepted)
         return {};
     const qlonglong sid = stationCombo->currentData().toLongLong();
-    if (sid <= 0 || codeEdit->text().trimmed().isEmpty()) {
-        QMessageBox::warning(this, QStringLiteral("提示"),
-                             QStringLiteral("所属电站和桩号不能为空。"));
-        return {};
-    }
 
     QHash<QString, QVariant> values;
     values.insert(QStringLiteral("station_id"), sid);
@@ -241,8 +270,12 @@ void PileManagePage::onAdd()
     const QHash<QString, QVariant> values = editPileDialog({});
     if (values.isEmpty())
         return;
-    if (DataSource *ds = AppContext::instance()->dataSource())
-        ds->insertRow(QStringLiteral("charging_piles"), values);
+    if (DataSource *ds = AppContext::instance()->dataSource()) {
+        if (ds->insertRow(QStringLiteral("charging_piles"), values) <= 0) {
+            QMessageBox::warning(this, QStringLiteral("新增失败"),
+                                 QStringLiteral("未能新增电桩，请检查桩号是否重复。"));
+        }
+    }
 }
 
 void PileManagePage::onEdit()
@@ -269,8 +302,11 @@ void PileManagePage::onEdit()
     const QHash<QString, QVariant> values = editPileDialog(rows.first());
     if (values.isEmpty())
         return;
-    ds->updateRows(QStringLiteral("charging_piles"), values,
-                   QStringLiteral("id = ?"), QVariantList{id});
+    if (ds->updateRows(QStringLiteral("charging_piles"), values,
+                       QStringLiteral("id = ?"), QVariantList{id}) <= 0) {
+        QMessageBox::warning(this, QStringLiteral("修改失败"),
+                             QStringLiteral("未能修改电桩，请检查桩号是否重复。"));
+    }
 }
 
 void PileManagePage::onRemove()
@@ -299,4 +335,42 @@ void PileManagePage::onRemove()
                 QStringLiteral("该充电桩正在使用或已有订单记录，不能删除。"));
         }
     }
+}
+
+void PileManagePage::onRestart()
+{
+    const int row = m_table->currentRow();
+    if (row < 0) {
+        QMessageBox::information(this, QStringLiteral("提示"),
+                                 QStringLiteral("请先选中要重启的电桩。"));
+        return;
+    }
+
+    const QTableWidgetItem *idItem = m_table->item(row, 0);
+    const qlonglong id = idItem ? idItem->data(Qt::UserRole).toLongLong() : -1;
+    if (id <= 0)
+        return;
+    const QString code = m_table->item(row, 1) ? m_table->item(row, 1)->text() : QString();
+    const QString station = m_table->item(row, 2) ? m_table->item(row, 2)->text() : QString();
+    const QString status = m_table->item(row, 6) ? m_table->item(row, 6)->text() : QString();
+    if (status == QStringLiteral("使用中")) {
+        QMessageBox::warning(this, QStringLiteral("无法重启"),
+                             QStringLiteral("该电桩正在充电，不能远程重启。"));
+        return;
+    }
+
+    if (QMessageBox::question(
+            this, QStringLiteral("远程重启"),
+            QStringLiteral("确定向“%1”的 %2 号电桩发送重启指令吗？")
+                .arg(station, code)) != QMessageBox::Yes)
+        return;
+
+    DataSource *ds = AppContext::instance()->dataSource();
+    if (!ds || !ds->restartChargingPile(id)) {
+        QMessageBox::warning(this, QStringLiteral("重启失败"),
+                             QStringLiteral("电桩正在使用、已不存在或服务器未响应。"));
+        return;
+    }
+    QMessageBox::information(this, QStringLiteral("重启完成"),
+                             QStringLiteral("%1 号电桩已恢复为空闲状态。").arg(code));
 }

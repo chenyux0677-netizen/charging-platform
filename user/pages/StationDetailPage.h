@@ -22,7 +22,7 @@ public:
 
 signals:
     void backRequested();
-    void pileChosen(const DataRow &pile);
+    void pileChosen(const DataRow &pile, const DataRow &station);
     void navigationRequested(const DataRow &station);
 
 private:

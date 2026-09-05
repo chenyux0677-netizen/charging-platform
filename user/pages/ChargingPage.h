@@ -19,7 +19,7 @@ public:
     explicit ChargingPage(QWidget *parent = nullptr);
 
     // 选中某个空闲充电桩后调用,进入"待开始"状态
-    void setPile(const DataRow &pile);
+    void setPile(const DataRow &pile, const DataRow &station);
 
     // 每次切入本页时调用:检查未完成订单,决定能否开始充电
     void onPageEntered();
@@ -35,6 +35,7 @@ private:
     void resetPage();
     bool findUnfinishedOrder() const;
 
+    QLabel *m_stationLabel = nullptr;
     QLabel *m_pileLabel = nullptr;
     QLabel *m_priceLabel = nullptr;
     QLabel *m_energyLabel = nullptr;

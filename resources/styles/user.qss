@@ -152,9 +152,13 @@ UserMainWindow #pageTitleLabel {
 #backButton {
     background: transparent;
     color: #00b26a;
+    border: none;
     font-size: 14px;
     padding: 2px 4px;
     text-align: left;
+}
+#backButton:hover {
+    background: #dff4ea;
 }
 #stationNameLabel {
     font-size: 20px;
@@ -164,20 +168,90 @@ UserMainWindow #pageTitleLabel {
     color: #7a8698;
     font-size: 12px;
 }
+#navigationButton {
+    background: #00a864;
+    color: #ffffff;
+    border: 1px solid #008f56;
+    font-size: 14px;
+    font-weight: 700;
+    padding: 9px 0;
+}
+#navigationButton:hover {
+    background: #008f56;
+}
+#navigationButton:pressed {
+    background: #007548;
+}
+#navigationButton:disabled {
+    background: #dfe7e3;
+    color: #87958e;
+    border-color: #ccd7d1;
+}
+
+/* 地图路线方式：未选中项保持清晰边界，选中项使用用户端强调色。 */
+#drivingRouteButton, #walkingRouteButton {
+    background: #ffffff;
+    color: #3f554b;
+    border: 1px solid #b8c9c1;
+    font-weight: 600;
+    padding: 7px 18px;
+}
+#drivingRouteButton:hover, #walkingRouteButton:hover {
+    background: #edf8f3;
+    border-color: #75bd9e;
+}
+#drivingRouteButton:checked, #walkingRouteButton:checked {
+    background: #d9f5e9;
+    color: #007a49;
+    border-color: #55bd91;
+    font-weight: 700;
+}
+#drivingRouteButton:checked:hover, #walkingRouteButton:checked:hover {
+    background: #c9eedf;
+}
+
+#navigationBackButton {
+    background: transparent;
+    color: #008f56;
+    border: none;
+    padding: 2px 4px;
+    text-align: left;
+}
+#navigationBackButton:hover {
+    background: #dff4ea;
+}
 
 /* ---------- 充电页 ---------- */
-#pileLabel {
+#chargePileCard, #chargeProgressCard {
+    background: #ffffff;
+    border: 1px solid #dfe6ed;
+    border-radius: 12px;
+}
+#chargeStationLabel {
+    color: #1f2a44;
     font-size: 16px;
+    font-weight: 700;
+}
+#pileLabel {
+    font-size: 13px;
     font-weight: 600;
-    color: #334155;
+    color: #526174;
 }
 #priceLabel {
+    color: #087f5b;
+    background: #dff7ec;
+    border-radius: 8px;
+    padding: 3px 7px;
+    font-size: 12px;
+    font-weight: 700;
+}
+#chargeProgressCaption {
     color: #7a8698;
-    font-size: 13px;
+    font-size: 12px;
 }
 #energyLabel, #amountLabel {
-    font-size: 15px;
-    color: #1f2a44;
+    font-size: 13px;
+    color: #526174;
     font-weight: 600;
 }
 #timeLabel {
